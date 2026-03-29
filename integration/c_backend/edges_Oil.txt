@@ -1,0 +1,15 @@
+Russia Germany 0.6
+Saudi Germany 0.25
+USA Germany 0.15
+
+Russia India 0.3
+Saudi India 0.5
+USA India 0.2
+
+USA Japan 0.4
+Saudi Japan 0.4
+Russia Japan 0.2
+
+Germany India 0.3
+India Japan 0.2
+Germany Japan 0.4

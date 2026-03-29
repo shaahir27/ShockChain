@@ -1,0 +1,8 @@
+# name type gdp_factor annual_import
+Russia exporter 0 0
+Saudi exporter 0 0
+USA exporter 0 0
+
+Germany importer 0.4 100
+India importer 0.5 120
+Japan importer 0.35 80
