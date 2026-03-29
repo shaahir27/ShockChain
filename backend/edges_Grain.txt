@@ -1,0 +1,4 @@
+USA India 0.4
+India Japan 0.3
+USA Germany 0.5
+Germany Japan 0.2
