@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_NODES 10
+#define MAX_NODES 20
 #define NAME_LEN 50
 
 // ---------------- NODE STRUCT ----------------
@@ -13,13 +13,17 @@ typedef struct {
 
 // ---------------- GRAPH ----------------
 Node nodes[MAX_NODES] = {
-    {"Oil", 100},
+    {"MiddleEast_Oil", 100},
     {"India", 100},
-    {"Manufacturing", 100}
+    {"China", 100},
+    {"SouthKorea", 100},
+    {"USA", 100},
+    {"UK", 100},
+    {"Vietnam", 100}
 };
 
 int adj[MAX_NODES][MAX_NODES] = {0};
-int node_count = 3;
+int node_count = 7;
 
 // ---------------- FIND NODE ----------------
 int find_node(char *name) {
@@ -32,9 +36,21 @@ int find_node(char *name) {
 
 // ---------------- INIT GRAPH ----------------
 void init_graph() {
-    // Oil → India → Manufacturing
-    adj[0][1] = 1;
-    adj[1][2] = 1;
+
+    // Middle East Oil impacts
+    adj[0][1] = 1; // India
+    adj[0][2] = 1; // China
+
+    // China impacts
+    adj[2][3] = 1; // South Korea
+    adj[2][4] = 1; // USA
+    adj[2][6] = 1; // Vietnam
+
+    // South Korea impacts
+    adj[3][4] = 1; // USA
+
+    // USA impacts
+    adj[4][5] = 1; // UK
 }
 
 // ---------------- SIMULATION ----------------
@@ -51,12 +67,14 @@ void simulate(int source, float reduction) {
     visited[source] = 1;
 
     while(front < rear) {
+
         int curr = queue[front++];
 
         for(int i = 0; i < node_count; i++) {
+
             if(adj[curr][i] > 0) {
 
-                float transfer = impact[curr] * 0.5; // simple propagation
+                float transfer = impact[curr] * 0.5;
                 impact[i] += transfer;
 
                 if(impact[i] > 100) impact[i] = 100;
@@ -69,7 +87,7 @@ void simulate(int source, float reduction) {
         }
     }
 
-    // ---------------- OUTPUT (VERY IMPORTANT) ----------------
+    // ---------------- OUTPUT ----------------
     for(int i = 0; i < node_count; i++) {
 
         float remaining = nodes[i].supply - impact[i];
@@ -85,20 +103,31 @@ void simulate(int source, float reduction) {
 // ---------------- MAIN ----------------
 int main() {
 
-    char node_name[NAME_LEN];
-    char shock_type[NAME_LEN]; // not used but kept for compatibility
+    char country[NAME_LEN];
+    char resource[NAME_LEN];
+    char shock_type[NAME_LEN];
     float reduction;
 
-    // Read input from Flask
-    // Example input: Oil sanction 30
-    if(scanf("%s %s %f", node_name, shock_type, &reduction) != 3) {
+    // Input format:
+    // Example:
+    // MiddleEast Oil sanction 30
+    if(scanf("%s %s %s %f", country, resource, shock_type, &reduction) != 4) {
         printf("Error");
         return 1;
     }
 
     init_graph();
 
-    int source = find_node(node_name);
+    char node_key[NAME_LEN];
+
+    // Build node key
+    if(strcmp(country, "MiddleEast") == 0 && strcmp(resource, "Oil") == 0) {
+        sprintf(node_key, "MiddleEast_Oil");
+    } else {
+        strcpy(node_key, country);
+    }
+
+    int source = find_node(node_key);
 
     if(source == -1) {
         printf("Error");
