@@ -2,33 +2,39 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_NODES 20
+#define MAX_NODES 50
 #define NAME_LEN 50
 
-// ---------------- NODE STRUCT ----------------
+#ifdef _WIN32
+#define strcasecmp _stricmp
+#endif
+
+// ---------------- NODE ----------------
 typedef struct {
-    char name[NAME_LEN];
+    char country[NAME_LEN];
+    char resource[NAME_LEN];
     float supply;
 } Node;
 
-// ---------------- GRAPH ----------------
 Node nodes[MAX_NODES] = {
-    {"MiddleEast_Oil", 100},
-    {"India_Oil", 100},
-    {"China_Oil", 100},
-    {"SouthKorea_Oil", 100},
-    {"USA_Oil", 100},
-    {"UK_Oil", 100},
-    {"Vietnam_Oil", 100}
+    {"MiddleEast", "Oil", 100},
+    {"India", "Oil", 100},
+    {"India", "Wheat", 100},
+    {"China", "Oil", 100},
+    {"China", "Manufacturing", 100},
+    {"USA", "Tech", 100},
+    {"SouthKorea", "Semiconductors", 100},
+    {"Vietnam", "Manufacturing", 100}
 };
 
+int node_count = 8;
 int adj[MAX_NODES][MAX_NODES] = {0};
-int node_count = 7;
 
 // ---------------- FIND NODE ----------------
-int find_node(char *name) {
+int find_node(char *country, char *resource) {
     for(int i = 0; i < node_count; i++) {
-        if(strcmp(nodes[i].name, name) == 0)
+        if(strcasecmp(nodes[i].country, country) == 0 &&
+           strcasecmp(nodes[i].resource, resource) == 0)
             return i;
     }
     return -1;
@@ -37,30 +43,46 @@ int find_node(char *name) {
 // ---------------- INIT GRAPH ----------------
 void init_graph() {
 
-    // MiddleEast_Oil impacts
-    adj[0][1] = 1; // India_Oil
-    adj[0][2] = 1; // China_Oil
+    // MiddleEast Oil → India Oil, China Oil
+    adj[0][1] = 1;
+    adj[0][3] = 1;
 
-    // China_Oil impacts
-    adj[2][3] = 1; // SouthKorea_Oil
-    adj[2][4] = 1; // USA_Oil
-    adj[2][6] = 1; // Vietnam_Oil
+    // India Oil → India Wheat (cross-sector)
+    adj[1][2] = 1;
 
-    // SouthKorea_Oil impacts
-    adj[3][4] = 1; // USA_Oil
+    // China Oil → Manufacturing
+    adj[3][4] = 1;
 
-    // USA_Oil impacts
-    adj[4][5] = 1; // UK_Oil
+    // China Manufacturing → Vietnam Manufacturing
+    adj[4][7] = 1;
+
+    // South Korea → USA Tech
+    adj[6][5] = 1;
+}
+
+// ---------------- SHOCK MULTIPLIER ----------------
+float get_multiplier(char *shock_type) {
+
+    if(strcasecmp(shock_type, "sanction") == 0)
+        return 1.2;
+    else if(strcasecmp(shock_type, "war") == 0)
+        return 1.5;
+    else if(strcasecmp(shock_type, "exportban") == 0)
+        return 1.3;
+
+    return 1.0;
 }
 
 // ---------------- SIMULATION ----------------
-void simulate(int source, float reduction) {
+void simulate(int source, float reduction, char *shock_type) {
 
     float impact[MAX_NODES] = {0};
     int visited[MAX_NODES] = {0};
 
     int queue[MAX_NODES];
     int front = 0, rear = 0;
+
+    float multiplier = get_multiplier(shock_type);
 
     impact[source] = reduction;
     queue[rear++] = source;
@@ -74,9 +96,11 @@ void simulate(int source, float reduction) {
 
             if(adj[curr][i] > 0) {
 
-                float transfer = impact[curr] * 0.5;
+                float transfer = impact[curr] * 0.6 * multiplier;
 
-                // ✅ Improved: prevent unrealistic stacking
+                // decay
+                transfer *= 0.85;
+
                 if(impact[i] < transfer)
                     impact[i] = transfer;
 
@@ -97,13 +121,12 @@ void simulate(int source, float reduction) {
         float remaining = nodes[i].supply - impact[i];
         if(remaining < 0) remaining = 0;
 
-        printf("%s:%.0f", nodes[i].name, remaining);
+        printf("%s|%s|%.0f", nodes[i].country, nodes[i].resource, remaining);
 
         if(i != node_count - 1)
             printf(";");
     }
 
-    // ✅ IMPORTANT: flush output for Flask
     fflush(stdout);
 }
 
@@ -115,28 +138,27 @@ int main() {
     char shock_type[NAME_LEN];
     float reduction;
 
-    // Expected input:
-    // MiddleEast Oil sanction 30
+    // Input from frontend
     if(scanf("%s %s %s %f", country, resource, shock_type, &reduction) != 4) {
-        printf("Error");
+        printf("InvalidInput");
+        return 1;
+    }
+
+    if(reduction < 0 || reduction > 100) {
+        printf("InvalidReduction");
         return 1;
     }
 
     init_graph();
 
-    char node_key[NAME_LEN];
-
-    // ✅ CRITICAL FIX: unified naming
-    sprintf(node_key, "%s_%s", country, resource);
-
-    int source = find_node(node_key);
+    int source = find_node(country, resource);
 
     if(source == -1) {
-        printf("Error");
+        printf("NodeNotFound");
         return 1;
     }
 
-    simulate(source, reduction);
+    simulate(source, reduction, shock_type);
 
     return 0;
 }
