@@ -1,0 +1,116 @@
+body {
+  margin: 0;
+  font-family: Arial;
+  background: #0f172a;
+  color: white;
+}
+
+/* HEADER */
+header {
+  text-align: center;
+  padding: 15px;
+  font-size: 22px;
+}
+
+/* TABS */
+nav {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.tab {
+  background: transparent;
+  border: none;
+  color: white;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.tab.active {
+  border-bottom: 2px solid #3b82f6;
+  color: #3b82f6;
+}
+
+/* TAB CONTENT */
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* MAP */
+.container {
+  display: flex;
+  height: 70vh;
+}
+
+#map {
+  flex: 3;
+}
+
+.panel {
+  flex: 1;
+  padding: 15px;
+  background: rgba(255,255,255,0.05);
+}
+
+/* NETWORK */
+.network-container {
+  padding: 20px;
+}
+
+#networkGraph {
+  height: 400px;
+  background: #1e293b;
+}
+
+/* ANALYTICS */
+.analytics-container {
+  padding: 20px;
+}
+
+.kpi {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 20px;
+}
+
+canvas {
+  margin-bottom: 20px;
+}
+
+/* INSIGHTS */
+.insights-container {
+  padding: 20px;
+}
+
+/* SLIDER */
+.slider-container {
+  text-align: center;
+  padding: 10px;
+}
+
+/* 📱 MOBILE RESPONSIVE */
+@media (max-width: 768px) {
+
+  .container {
+    flex-direction: column;
+  }
+
+  #map {
+    height: 300px;
+  }
+
+  .panel {
+    width: 100%;
+  }
+
+  .kpi {
+    flex-direction: column;
+    gap: 10px;
+  }
+}

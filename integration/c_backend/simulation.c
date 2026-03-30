@@ -14,12 +14,12 @@ typedef struct {
 // ---------------- GRAPH ----------------
 Node nodes[MAX_NODES] = {
     {"MiddleEast_Oil", 100},
-    {"India", 100},
-    {"China", 100},
-    {"SouthKorea", 100},
-    {"USA", 100},
-    {"UK", 100},
-    {"Vietnam", 100}
+    {"India_Oil", 100},
+    {"China_Oil", 100},
+    {"SouthKorea_Oil", 100},
+    {"USA_Oil", 100},
+    {"UK_Oil", 100},
+    {"Vietnam_Oil", 100}
 };
 
 int adj[MAX_NODES][MAX_NODES] = {0};
@@ -37,20 +37,20 @@ int find_node(char *name) {
 // ---------------- INIT GRAPH ----------------
 void init_graph() {
 
-    // Middle East Oil impacts
-    adj[0][1] = 1; // India
-    adj[0][2] = 1; // China
+    // MiddleEast_Oil impacts
+    adj[0][1] = 1; // India_Oil
+    adj[0][2] = 1; // China_Oil
 
-    // China impacts
-    adj[2][3] = 1; // South Korea
-    adj[2][4] = 1; // USA
-    adj[2][6] = 1; // Vietnam
+    // China_Oil impacts
+    adj[2][3] = 1; // SouthKorea_Oil
+    adj[2][4] = 1; // USA_Oil
+    adj[2][6] = 1; // Vietnam_Oil
 
-    // South Korea impacts
-    adj[3][4] = 1; // USA
+    // SouthKorea_Oil impacts
+    adj[3][4] = 1; // USA_Oil
 
-    // USA impacts
-    adj[4][5] = 1; // UK
+    // USA_Oil impacts
+    adj[4][5] = 1; // UK_Oil
 }
 
 // ---------------- SIMULATION ----------------
@@ -75,9 +75,13 @@ void simulate(int source, float reduction) {
             if(adj[curr][i] > 0) {
 
                 float transfer = impact[curr] * 0.5;
-                impact[i] += transfer;
 
-                if(impact[i] > 100) impact[i] = 100;
+                // ✅ Improved: prevent unrealistic stacking
+                if(impact[i] < transfer)
+                    impact[i] = transfer;
+
+                if(impact[i] > 100)
+                    impact[i] = 100;
 
                 if(!visited[i]) {
                     queue[rear++] = i;
@@ -98,6 +102,9 @@ void simulate(int source, float reduction) {
         if(i != node_count - 1)
             printf(";");
     }
+
+    // ✅ IMPORTANT: flush output for Flask
+    fflush(stdout);
 }
 
 // ---------------- MAIN ----------------
@@ -108,8 +115,7 @@ int main() {
     char shock_type[NAME_LEN];
     float reduction;
 
-    // Input format:
-    // Example:
+    // Expected input:
     // MiddleEast Oil sanction 30
     if(scanf("%s %s %s %f", country, resource, shock_type, &reduction) != 4) {
         printf("Error");
@@ -120,12 +126,8 @@ int main() {
 
     char node_key[NAME_LEN];
 
-    // Build node key
-    if(strcmp(country, "MiddleEast") == 0 && strcmp(resource, "Oil") == 0) {
-        sprintf(node_key, "MiddleEast_Oil");
-    } else {
-        strcpy(node_key, country);
-    }
+    // ✅ CRITICAL FIX: unified naming
+    sprintf(node_key, "%s_%s", country, resource);
 
     int source = find_node(node_key);
 

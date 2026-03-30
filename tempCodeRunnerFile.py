@@ -7,22 +7,16 @@ app = Flask(__name__)
 CORS(app)
 
 # =========================
-# 🏠 HOME + HEALTH
+# 🏠 HOME ROUTE
 # =========================
 @app.route("/")
 def home():
     return jsonify({
-        "message": "ShockChain API running 🚀",
+        "message": "ShockChain API running",
         "endpoints": {
-            "/simulate": "POST → run simulation",
-            "/health": "GET → server status"
+            "/simulate": "POST → run simulation"
         }
     })
-
-
-@app.route("/health")
-def health():
-    return jsonify({"status": "ok"})
 
 
 # =========================
@@ -32,10 +26,6 @@ def run_c_program(country, resource, shock):
     try:
         exe_path = os.path.join("integration", "c_backend", "simulation.exe")
 
-        if not os.path.exists(exe_path):
-            print("❌ simulation.exe not found")
-            return ""
-
         process = subprocess.Popen(
             [exe_path],
             stdin=subprocess.PIPE,
@@ -44,31 +34,29 @@ def run_c_program(country, resource, shock):
             text=True
         )
 
-        # Clean input
-        country_clean = country.replace(" ", "")
-        resource_clean = resource.replace(" ", "")
         shock_clean = shock.replace(" ", "")
+        resource_clean = resource.replace(" ", "")
 
-        input_data = f"{country_clean} {resource_clean} {shock_clean} 30\n"
+        input_data = f"{country} {resource_clean} {shock_clean} 30\n"
 
-        print("INPUT →", input_data)
+        print("INPUT TO C:", input_data)
 
         output, error = process.communicate(input_data, timeout=5)
 
         if error:
-            print("C ERROR:", error)
+            print("C Error:", error)
 
-        print("OUTPUT →", output)
+        print("RAW OUTPUT:", output)
 
         return output.strip()
 
     except subprocess.TimeoutExpired:
         process.kill()
-        print("❌ C timeout")
+        print("C program timeout")
         return ""
 
     except Exception as e:
-        print("❌ Error running C:", e)
+        print("Error running C:", e)
         return ""
 
 
@@ -79,9 +67,6 @@ def parse_output(output):
     result = {}
 
     try:
-        if not output:
-            return {}
-
         items = output.split(";")
 
         for item in items:
@@ -155,7 +140,6 @@ def generate_alerts(data):
         elif value <= 70:
             alerts.append(f"{country} under stress")
 
-    # Global alerts
     if any(v < 75 for v in data.values()):
         alerts.append("Global economic slowdown risk")
 
@@ -228,24 +212,18 @@ def simulate():
     if not country or not resource or not shock:
         return jsonify({"error": "Missing required fields"}), 400
 
-    print(f"REQUEST → {country}, {resource}, {shock}")
+    print(f"Request → {country}, {resource}, {shock}")
 
     # Run C backend
     output = run_c_program(country, resource, shock)
 
     parsed = parse_output(output)
 
-    # Fallback (IMPORTANT FOR DEMO)
-    if not parsed:
-        print("⚠️ Using fallback demo data")
-
-        parsed = {
-            "USA_Tech": 80,
-            "China_Manufacturing": 75,
-            "India_Pharmaceuticals": 85,
-            "SaudiArabia_Oil": 70,
-            "Germany_Auto": 78
-        }
+    if not parsed or not isinstance(parsed, dict):
+        return jsonify({
+            "error": "Simulation failed",
+            "debug_output": output
+        }), 500
 
     response = build_response(parsed, country, resource)
 

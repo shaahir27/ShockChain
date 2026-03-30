@@ -3,9 +3,466 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>ShockChain | Global Ripple Engine</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #020617;
+            color: #f8fafc;
+            overflow: hidden;
+        }
+
+        .map-container {
+            background-image: radial-gradient(#1e293b 1.5px, transparent 1.5px);
+            background-size: 40px 40px;
+        }
+
+        .node-pulse {
+            animation: pulse-red 2s infinite;
+        }
+
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+
+        .glass {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
 </head>
-<body>
-    
+<body class="flex h-screen">
+
+    <!-- Sidebar -->
+    <nav class="w-20 bg-slate-900 border-r border-slate-800 flex flex-col items-center py-8 gap-10 z-50">
+        <div class="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-500/20">
+            <i data-lucide="zap" class="w-6 h-6 text-white"></i>
+        </div>
+        
+        <div class="flex flex-col gap-8 flex-1">
+            <button onclick="switchTab('map')" class="nav-btn text-blue-500" id="btn-map">
+                <i data-lucide="map" class="w-6 h-6"></i>
+            </button>
+            <button onclick="switchTab('data')" class="nav-btn text-slate-500 hover:text-white" id="btn-data">
+                <i data-lucide="bar-chart-3" class="w-6 h-6"></i>
+            </button>
+            <button onclick="switchTab('intel')" class="nav-btn text-slate-500 hover:text-white" id="btn-intel">
+                <i data-lucide="brain-circuit" class="w-6 h-6"></i>
+            </button>
+        </div>
+
+        <div id="status-indicator" class="flex flex-col items-center gap-1">
+            <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse" id="status-dot"></div>
+            <span class="text-[8px] font-bold uppercase text-slate-500" id="status-text">Offline</span>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col relative overflow-hidden">
+        
+        <!-- Header -->
+        <header class="h-20 border-b border-slate-800 flex items-center px-8 justify-between bg-slate-950/50 backdrop-blur-md">
+            <div class="flex gap-12">
+                <div>
+                    <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Supply Health</p>
+                    <p class="text-2xl font-black text-blue-400" id="stat-supply">100.0%</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Est. GDP Loss</p>
+                    <p class="text-2xl font-black text-emerald-400" id="stat-gdp">$0.00T</p>
+                </div>
+            </div>
+            
+            <div class="flex gap-4">
+                <button onclick="generateScenario()" class="flex items-center gap-2 px-6 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl font-bold text-sm transition-all">
+                    <i data-lucide="dices" class="w-4 h-4"></i>
+                    ✨ Predict Scenario
+                </button>
+                <button onclick="generateAIReport()" class="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold text-sm transition-all shadow-lg shadow-indigo-500/20">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    ✨ Strategic Briefing
+                </button>
+            </div>
+        </header>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="hidden absolute inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex flex-col items-center justify-center">
+            <i data-lucide="activity" class="w-12 h-12 text-blue-500 animate-spin mb-4"></i>
+            <h2 class="text-xl font-black tracking-widest text-white uppercase" id="loading-text">Propagating Shock...</h2>
+        </div>
+
+        <!-- Viewports -->
+        <div class="flex-1 p-8 overflow-y-auto custom-scrollbar">
+            
+            <!-- Tab: Map -->
+            <div id="tab-map" class="tab-content active h-full relative">
+                <div class="w-full h-full rounded-[2.5rem] shadow-2xl" id="map"></div>
+                
+                <div class="absolute bottom-8 left-8 bg-slate-950/90 border border-slate-800 p-4 rounded-2xl backdrop-blur-md">
+                    <p class="text-[9px] font-black text-slate-500 uppercase mb-2">Resource Keys</p>
+                    <div class="flex flex-col gap-2">
+                        <div class="flex items-center gap-2"><i data-lucide="cpu" class="w-3 h-3 text-cyan-400"></i><span class="text-[10px] font-bold">Tech</span></div>
+                        <div class="flex items-center gap-2"><i data-lucide="droplets" class="w-3 h-3 text-blue-400"></i><span class="text-[10px] font-bold">Energy</span></div>
+                        <div class="flex items-center gap-2"><i data-lucide="wheat" class="w-3 h-3 text-amber-400"></i><span class="text-[10px] font-bold">Agri</span></div>
+                    </div>
+                </div>
+
+                <div id="quick-intel-bar" class="hidden absolute top-8 right-8 w-64 glass p-5 rounded-2xl animate-in slide-in-from-right">
+                    <p class="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2">✨ Live Observation</p>
+                    <p id="quick-intel-text" class="text-xs leading-relaxed text-slate-300 italic"></p>
+                </div>
+            </div>
+
+            <!-- Tab: Data -->
+            <div id="tab-data" class="tab-content space-y-8">
+                <div class="grid grid-cols-2 gap-8">
+                    <div class="bg-slate-900 p-8 rounded-[2rem] border border-slate-800">
+                        <h3 class="text-sm font-black text-slate-500 uppercase mb-6">Global GDP Impact</h3>
+                        <canvas id="gdpChart"></canvas>
+                    </div>
+                    <div class="bg-slate-900 p-8 rounded-[2rem] border border-slate-800">
+                        <h3 class="text-sm font-black text-slate-500 uppercase mb-6">Supply Chain Volatility</h3>
+                        <canvas id="supplyChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="bg-slate-900 rounded-[2rem] border border-slate-800 overflow-hidden">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-slate-800/50 text-[10px] uppercase font-black text-slate-500 tracking-widest border-b border-slate-800">
+                            <tr>
+                                <th class="p-6">Hub / Resource</th>
+                                <th class="p-6">Flow Capacity</th>
+                                <th class="p-6">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="registry-body" class="divide-y divide-slate-800">
+                            <!-- Rows injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab: Intel -->
+            <div id="tab-intel" class="tab-content max-w-4xl mx-auto py-10">
+                <h2 class="text-4xl font-black mb-8 flex items-center gap-4">
+                    <i data-lucide="brain-circuit" class="text-blue-500 w-10 h-10"></i> Strategic AI Briefing
+                </h2>
+                <div class="space-y-6" id="ai-reports-container">
+                    <div id="ai-content" class="bg-indigo-600/10 border border-indigo-500/20 p-10 rounded-[2.5rem] text-xl leading-relaxed italic text-slate-200">
+                        Select a target on the map or click "Predict Scenario" to activate the Strategic Intel Core.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+      
+        let map;
+        let markers = [];
+
+        const apiKey = ""; // Provided by environment
+        const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
+
+        // --- Configuration & State ---
+        const nodes = [
+            { id: "tw", country: "Taiwan", resource: "Chips", type: "cpu", lat: 23.5, lng: 121, supply: 100, color: "text-cyan-400" },
+            { id: "ua", country: "Ukraine", resource: "Grain", type: "wheat", lat: 48, lng: 31, supply: 100, color: "text-amber-400" },
+            { id: "sa", country: "Saudi Arabia", resource: "Oil", type: "droplets", lat: 24, lng: 45, supply: 100, color: "text-blue-400" },
+            { id: "de", country: "Germany", resource: "Auto", type: "zap", lat: 51, lng: 10, supply: 100, color: "text-purple-400" },
+            { id: "br", country: "Brazil", resource: "Iron", type: "box", lat: -14, lng: -51, supply: 100, color: "text-emerald-400" },
+            { id: "us", country: "USA", resource: "Tech", type: "cpu", lat: 38, lng: -97, supply: 100, color: "text-cyan-400" }
+        ];
+
+        let history = { labels: [0], gdp: [85.0], supply: [100] };
+        let charts = {};
+        let lastShockNode = null;
+
+        // --- Exponential Backoff Fetch for Gemini ---
+        async function fetchGemini(prompt, systemPrompt = "You are a world-class geopolitical analyst.") {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+            let delay = 1000;
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: prompt }] }],
+                            systemInstruction: { parts: [{ text: systemPrompt }] }
+                        })
+                    });
+                    if (!response.ok) throw new Error("API Failure");
+                    const data = await response.json();
+                    return data.candidates?.[0]?.content?.parts?.[0]?.text;
+                } catch (e) {
+                    await new Promise(res => setTimeout(res, delay));
+                    delay *= 2;
+                }
+            }
+            return "Unable to reach intelligence core. Please check network connectivity.";
+        }
+
+        function initMap() {
+            map = L.map('map').setView([20, 0], 2);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap'
+            }).addTo(map);
+        }
+
+        // --- Core Functions ---
+        function init() {
+            lucide.createIcons();
+            initMap();
+            renderNodes();
+            initCharts();
+            checkBackend();
+            updateStats();
+        }
+
+        async function checkBackend() {
+            try {
+                const res = await fetch('http://127.0.0.1:5000/simulate');
+                if (res.ok) {
+                    document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-emerald-500';
+                    document.getElementById('status-text').innerText = 'Online';
+                }
+            } catch (e) { console.log("Backend offline, running in Demo Mode"); }
+        }
+
+        function renderNodes() {
+
+            // Remove old markers
+            markers.forEach(m => map.removeLayer(m));
+            markers = [];
+
+            nodes.forEach(node => {
+
+                let color = node.supply > 80 ? "green" : "red";
+
+                const marker = L.circleMarker([node.lat, node.lng], {
+                    radius: 10,
+                    color: color,
+                    fillOpacity: 0.9
+                }).addTo(map);
+
+                marker.bindPopup(`
+                    <b>${node.country}</b><br>
+                    Resource: ${node.resource}<br>
+                    Supply: ${node.supply}%
+                `);
+
+                marker.on("click", () => triggerShock(node));
+
+                markers.push(marker);
+            });
+        }
+
+        async function triggerShock(node) {
+            lastShockNode = node;
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            document.getElementById('loading-text').innerText = "Propagating Shock...";
+            
+            try {
+                const res = await fetch('http://localhost:5000/simulate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ country: node.country, resource: node.resource })
+                });
+                const data = await res.json();
+                nodes.forEach(n => {
+                    Object.values(data.nodes).forEach(res => {
+                        if(res.country === n.country && res.resource === n.resource){
+                            n.supply = res.supply;
+                        }
+                    });
+                });
+            } catch (e) {
+                // Demo Fallback
+                node.supply = 15;
+                if(node.country === "Taiwan") {
+                    nodes.find(n => n.country === "Germany").supply = 60;
+                    nodes.find(n => n.country === "USA").supply = 75;
+                }
+            }
+
+            setTimeout(() => {
+                document.getElementById('loading-overlay').classList.add('hidden');
+                updateData();
+                renderNodes();
+                updateStats();
+                getQuickIntel(node);
+            }, 800);
+        }
+
+        async function getQuickIntel(node) {
+            const bar = document.getElementById('quick-intel-bar');
+            const text = document.getElementById('quick-intel-text');
+            bar.classList.remove('hidden');
+            text.innerText = "✨ AI analyzing ripple effects...";
+            
+            const prompt = `Short 1-sentence analytical prediction: What happens to global trade now that ${node.country} ${node.resource} capacity is at ${node.supply}%? Keep it professional and punchy.`;
+            const insight = await fetchGemini(prompt, "You are a concise logistics strategist.");
+            text.innerText = insight;
+            
+            setTimeout(() => bar.classList.add('hidden'), 10000);
+        }
+
+        async function generateAIReport() {
+            if (!lastShockNode) {
+                alert("Please trigger a shock on the map first to analyze.");
+                return;
+            }
+            
+            switchTab('intel');
+            const container = document.getElementById('ai-content');
+            container.innerHTML = `<div class="flex items-center gap-4"><i data-lucide="loader" class="w-6 h-6 animate-spin text-blue-500"></i> Executing Strategic Synthesis...</div>`;
+            lucide.createIcons();
+
+            const nodeContext = nodes.map(n => `${n.country}: ${n.supply}%`).join(', ');
+            const prompt = `Provide a Strategic Briefing based on these supply levels: ${nodeContext}. 
+            Focus specifically on how the failure in ${lastShockNode.country} cascades into other industries. 
+            Suggest one "Black Swan" event that could make this worse and one policy mitigation strategy. 
+            Format with bold headers.`;
+
+            const report = await fetchGemini(prompt, "You are the ShockChain Global Intelligence Core. You provide high-level economic risk assessments.");
+            container.innerHTML = report.replace(/\n/g, '<br>');
+        }
+
+        async function generateScenario() {
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            document.getElementById('loading-text').innerText = "Generating Predictive Scenario...";
+            
+            const prompt = `Pick one of these nodes: [Taiwan, Ukraine, Saudi Arabia, Germany, Brazil, USA]. 
+            Create a fictional but realistic geopolitical headline that justifies a supply chain shock. 
+            Return ONLY a JSON object: {"country": "Name", "headline": "Text"}`;
+            
+            try {
+                const response = await fetchGemini(prompt, "Return valid JSON only.");
+                const data = JSON.parse(response);
+                
+                const node = nodes.find(n => n.country === data.country);
+                if (node) {
+                    alert(`✨ PREDICTIVE ALERT: ${data.headline}`);
+                    triggerShock(node);
+                }
+            } catch (e) {
+                console.error("Scenario error", e);
+                document.getElementById('loading-overlay').classList.add('hidden');
+            }
+        }
+
+        function updateData() {
+            const avgSupply = nodes.reduce((a, b) => a + b.supply, 0) / nodes.length;
+            const currentGDP = (avgSupply / 100) * 85.0;
+            
+            history.labels.push(history.labels.length);
+            history.gdp.push(currentGDP.toFixed(1));
+            history.supply.push(avgSupply.toFixed(1));
+
+            charts.gdp.update();
+            charts.supply.update();
+        }
+
+        function updateStats() {
+            const avgSupply = nodes.reduce((a, b) => a + b.supply, 0) / nodes.length;
+            const loss = 85.0 - ((avgSupply / 100) * 85.0);
+            document.getElementById('stat-supply').innerText = `${avgSupply.toFixed(1)}%`;
+            document.getElementById('stat-gdp').innerText = `$${loss.toFixed(2)}T`;
+        }
+
+        function updateRegistry() {
+            const body = document.getElementById('registry-body');
+            body.innerHTML = nodes.map(n => `
+                <tr class="hover:bg-slate-800/30 transition-colors">
+                    <td class="p-6 font-bold flex items-center gap-3">
+                        <div class="p-2 bg-slate-950 rounded-lg border border-slate-800"><i data-lucide="${n.type}" class="w-4 h-4 ${n.color}"></i></div>
+                        ${n.country} (${n.resource})
+                    </td>
+                    <td class="p-6">
+                        <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                            <div class="h-full bg-blue-500 transition-all duration-1000" style="width: ${n.supply}%"></div>
+                        </div>
+                    </td>
+                    <td class="p-6">
+                        <span class="text-[10px] font-black uppercase tracking-widest ${n.supply > 80 ? 'text-emerald-500' : 'text-red-500'}">
+                            ${n.supply > 80 ? 'Operational' : 'Critical Failure'}
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.replace('text-blue-500', 'text-slate-500'));
+            
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+            document.getElementById(`btn-${tabId}`).classList.replace('text-slate-500', 'text-blue-500');
+            
+            if (tabId === 'data') {
+                setTimeout(() => { charts.gdp.resize(); charts.supply.resize(); }, 50);
+            }
+        }
+
+        function initCharts() {
+            const ctxGdp = document.getElementById('gdpChart').getContext('2d');
+            charts.gdp = new Chart(ctxGdp, {
+                type: 'line',
+                data: {
+                    labels: history.labels,
+                    datasets: [{
+                        label: 'GDP ($T)',
+                        data: history.gdp,
+                        borderColor: '#10b981',
+                        borderWidth: 4,
+                        fill: true,
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: { responsive: true, scales: { y: { grid: { color: '#1e293b' } }, x: { display: false } } }
+            });
+
+            const ctxSupply = document.getElementById('supplyChart').getContext('2d');
+            charts.supply = new Chart(ctxSupply, {
+                type: 'line',
+                data: {
+                    labels: history.labels,
+                    datasets: [{
+                        label: 'Avg Supply (%)',
+                        data: history.supply,
+                        borderColor: '#3b82f6',
+                        borderWidth: 4,
+                        fill: false,
+                        tension: 0
+                    }]
+                },
+                options: { responsive: true, scales: { y: { min: 0, max: 100, grid: { color: '#1e293b' } }, x: { display: false } } }
+            });
+        }
+
+        window.onload = init;
+    </script>
 </body>
 </html>
