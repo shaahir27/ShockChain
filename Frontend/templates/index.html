@@ -176,15 +176,6 @@
             </button>
         </div>
 
-        <div class="space-y-4">
-            <div class="flex justify-between items-center text-xs text-gray-400">
-                <span>Timeline Slider</span>
-                <span id="dayDisplay" class="text-brandBlue font-mono">Day: 0 / 90</span>
-            </div>
-            <input type="range" id="timelineSlider" min="0" max="89" value="0" 
-                class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-brandBlue">
-        </div>
-
         <div class="h-[80%] w-full" id="mapContainer"></div>
 
         <div class="h-[20%] flex border-t border-borderColor bg-panelBg">
@@ -267,37 +258,37 @@
     <main id="insights" class="tab-content flex-col w-full bg-darkBg p-6 overflow-y-auto space-y-6">
         
         <div class="bg-panelBg border border-borderColor p-5 rounded-lg border-l-4 border-l-brandBlue">
-            <h3 class="text-sm font-bold text-gray-400 flex items-center mb-3"><i class="fa-solid fa-brain text-purple-400 mr-2"></i> AI Summary</h3>
-            <p id="ai-summary" class="text-white text-base">Awaiting simulation data to generate AI insights and determine cascading effects.</p>
+            <h3 class="text-sm font-bold text-gray-400 flex items-center mb-3"><i class="fa-solid fa-brain text-purple-400 mr-2"></i> Rule-Based Summary</h3>
+            <p id="ai-summary" class="text-white text-base">Awaiting simulation data to generate insights and determine cascading effects.</p>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
             <div class="bg-panelBg border border-borderColor p-5 rounded-lg">
                 <h3 class="text-sm font-bold text-gray-400 flex items-center mb-3"><i class="fa-solid fa-magnifying-glass text-blue-400 mr-2"></i> Root Cause</h3>
-                <div id="insight-root" class="text-gray-300 text-sm">-</div>
+                <div id="insight-root" class="text-gray-300 text-sm">Run a simulation to populate root cause analysis.</div>
             </div>
             <div class="bg-panelBg border border-borderColor p-5 rounded-lg">
                 <h3 class="text-sm font-bold text-gray-400 flex items-center mb-3"><i class="fa-solid fa-link text-green-400 mr-2"></i> Cascade Path</h3>
-                <div id="insight-cascade" class="text-gray-300 text-sm font-mono">-</div>
+                <div id="insight-cascade" class="text-gray-300 text-sm font-mono">–</div>
             </div>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
             <div class="bg-panelBg border border-borderColor p-5 rounded-lg">
                 <h3 class="text-sm font-bold text-gray-400 flex items-center mb-3"><i class="fa-solid fa-triangle-exclamation text-yellow-400 mr-2"></i> Risk Assessment</h3>
-                <div id="insight-risk" class="text-gray-300 text-sm">-</div>
+                <div id="insight-risk" class="text-gray-300 text-sm">–</div>
             </div>
             <div class="bg-panelBg border border-borderColor p-5 rounded-lg">
                 <h3 class="text-sm font-bold text-gray-400 flex items-center mb-3"><i class="fa-solid fa-network-wired text-orange-400 mr-2"></i> Dependency Analysis</h3>
                 <ul id="insight-dep" class="list-disc pl-5 text-gray-300 text-sm space-y-1">
-                    <li>-</li>
+                    <li class="text-gray-500 italic">Run a simulation to analyse node dependencies.</li>
                 </ul>
             </div>
         </div>
 
         <div class="bg-panelBg border border-borderColor p-5 rounded-lg">
             <h3 class="text-sm font-bold text-gray-400 flex items-center mb-3"><i class="fa-solid fa-lightbulb text-yellow-300 mr-2"></i> Recommendations</h3>
-            <ul id="insight-rec" class="space-y-2 font-mono text-sm text-gray-300 bg-darkBg p-4 rounded border border-borderColor">
+            <ul id="insight-rec" class="space-y-2 font-mono text-sm text-gray-300 bg-darkBg p-4 rounded border border-borderColor list-none">
                 <li>- Run a simulation to generate strategic recommendations.</li>
             </ul>
         </div>
@@ -313,5 +304,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </body>
 </html>

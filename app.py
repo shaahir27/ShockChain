@@ -5,9 +5,9 @@ from flask import render_template
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TMPL_DIR = os.path.join(BASE_DIR, "Frontend", "templates")
-STATIC_DIR = os.path.join(BASE_DIR, "Frontend")
+STATIC_DIR = os.path.join(BASE_DIR, "Frontend", "static")
 
-app = Flask(__name__, \
+app = Flask(__name__,
             template_folder=TMPL_DIR,
             static_folder=STATIC_DIR)
 
@@ -111,10 +111,21 @@ def split_node(node):
 # =========================
 # 📊 METRICS
 # =========================
+NODE_GDP_WEIGHTS = {
+    "MiddleEast_Oil": 0.18,
+    "India_Oil": 0.12,
+    "India_Wheat": 0.08,
+    "China_Oil": 0.14,
+    "China_Manufacturing": 0.20,
+    "USA_Tech": 0.22,
+    "SouthKorea_Semiconductors": 0.14,
+    "Vietnam_Manufacturing": 0.07,
+}
+
 def calculate_metrics(data):
 
     if not data:
-        return {"avgSupply": 0, "totalGDP": 0, "riskLevel": "Low"}
+        return {"avgSupply": 0, "totalGDP": 0, "riskLevel": "Low", "gdpImpact": 0, "affectedNodes": 0}
 
     avg = sum(data.values()) / len(data)
     gdp = sum(data.values()) * 10
@@ -122,14 +133,25 @@ def calculate_metrics(data):
     if avg < 70:
         risk = "High"
     elif avg < 85:
-        risk = "Medium"
+        risk = "Moderate"
     else:
         risk = "Low"
+
+    # Weighted GDP impact
+    gdp_impact = 0
+    for node, supply in data.items():
+        weight = NODE_GDP_WEIGHTS.get(node, 0.1)
+        loss   = (100 - supply) / 100.0
+        gdp_impact += loss * weight * 1000
+
+    affected = sum(1 for v in data.values() if v < 80)
 
     return {
         "avgSupply": round(avg, 2),
         "totalGDP": gdp,
-        "riskLevel": risk
+        "riskLevel": risk,
+        "gdpImpact": round(gdp_impact),
+        "affectedNodes": affected
     }
 
 
@@ -242,4 +264,4 @@ def simulate():
 # ▶️ RUN SERVER
 # =========================
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=10000)
