@@ -427,10 +427,9 @@ function triggerPreset(type) {
 // ==========================================
 function initLeaflet() {
     map = L.map('mapContainer').setView([20, 0], 2);
-    L.tileLayer('https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; Stadia Maps & OpenMapTiles',
-        maxZoom: 20
-    }).addTo(map);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
 
     defaultNodes.forEach(node => {
         if (node.data.lat && node.data.lng) {
