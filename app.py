@@ -7,7 +7,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TMPL_DIR = os.path.join(BASE_DIR, "Frontend", "templates")
 STATIC_DIR = os.path.join(BASE_DIR, "Frontend", "static")
 
-app = Flask(__name__,
+app = Flask(__name__, \
             template_folder=TMPL_DIR,
             static_folder=STATIC_DIR)
 
@@ -264,4 +264,4 @@ def simulate():
 # ▶️ RUN SERVER
 # =========================
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    app.run(debug=True)
