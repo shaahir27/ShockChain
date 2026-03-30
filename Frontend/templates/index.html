@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShockChain Simulator</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#121212',
+                        panelBg: '#1e1e24',
+                        borderColor: '#333333',
+                        brandBlue: '#3b82f6',
+                        brandGlow: 'rgba(59, 130, 246, 0.5)'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body { background-color: #121212; color: #ffffff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+        
+        /* Navbar Active State */
+        .nav-link { position: relative; padding-bottom: 0.5rem; transition: all 0.3s ease; cursor: pointer; color: #a0aec0; }
+        .nav-link:hover { color: #ffffff; }
+        .nav-link.active {
+            color: #3b82f6;
+            font-weight: bold;
+            text-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+        }
+        .nav-link.active::after {
+            content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 2px;
+            background-color: #3b82f6;
+            box-shadow: 0 -2px 10px rgba(59, 130, 246, 0.8);
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #1e1e24; }
+        ::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 3px; }
+
+        /* Draggable items */
+        .draggable { cursor: grab; }
+        .draggable:active { cursor: grabbing; }
+
+        /* Graph & Map Containers */
+        #cy { width: 100%; height: 100%; background-color: #1a1a20; }
+        #map { width: 100%; height: 100%; background-color: #1a1a20; }
+        
+        .tab-content { display: none; height: calc(100vh - 70px); }
+        .tab-content.active { display: flex; }
+        
+        /* Range Slider */
+        input[type=range] {
+            -webkit-appearance: none; width: 100%; background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
+            background: #3b82f6; cursor: pointer; margin-top: -6px;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.8);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer; background: #4a5568; border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen">
+
+    <header class="h-[70px] bg-panelBg border-b border-borderColor flex items-center px-6 justify-between shrink-0">
+        <div class="flex items-center space-x-8">
+            <div class="text-xl font-bold tracking-wider flex items-center space-x-2">
+                <i class="fa-solid fa-bolt text-brandBlue"></i>
+                <span>ShockChain</span>
+            </div>
+            <nav class="flex space-x-6 text-sm mt-1">
+                <a class="nav-link active" data-tab="network">Network</a>
+                <a class="nav-link" data-tab="map">Map</a>
+                <a class="nav-link" data-tab="analytics">Analytics</a>
+                <a class="nav-link" data-tab="insights">Insights</a>
+            </nav>
+        </div>
+        <div class="flex items-center space-x-4">
+            <span id="global-status" class="px-3 py-1 bg-green-900/50 text-green-400 border border-green-800 rounded text-xs font-semibold">System Stable</span>
+        </div>
+    </header>
+
+    <main id="network" class="tab-content active flex-row w-full bg-darkBg">
+        <aside class="w-1/4 min-w-[300px] max-w-[400px] flex flex-col border-r border-borderColor bg-panelBg p-4 space-y-6 overflow-y-auto">
+            
+            <div class="space-y-3">
+                <h3 class="text-sm font-semibold text-gray-400 flex items-center space-x-2">
+                    <i class="fa-solid fa-globe text-brandBlue"></i> <span>Live Events (API)</span>
+                </h3>
+                <div class="space-y-2" id="live-events-list">
+                    <div class="p-3 bg-darkBg border border-borderColor rounded hover:border-brandBlue cursor-pointer transition" onclick="triggerPreset('oil')">
+                        <div class="text-sm font-semibold text-red-400">- Oil disruption in Middle East</div>
+                        <div class="text-xs text-gray-500 mt-1">Severity: High | Impact: Global</div>
+                    </div>
+                    <div class="p-3 bg-darkBg border border-borderColor rounded hover:border-brandBlue cursor-pointer transition" onclick="triggerPreset('trade')">
+                        <div class="text-sm font-semibold text-yellow-400">- Trade sanctions on Tech</div>
+                        <div class="text-xs text-gray-500 mt-1">Severity: Medium | Impact: Regional</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-3 flex-grow">
+                <h3 class="text-sm font-semibold text-gray-400 flex items-center space-x-2">
+                    <i class="fa-solid fa-bolt text-orange-500"></i> <span>Shock Tools</span>
+                </h3>
+                <div class="text-xs text-gray-500 mb-2">Drag tool to a node to apply shock</div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="draggable p-3 bg-darkBg border border-borderColor rounded text-center flex flex-col items-center justify-center space-y-2 hover:bg-gray-800" draggable="true" ondragstart="drag(event, 'sanction')">
+                        <i class="fa-solid fa-ban text-red-500 text-lg"></i>
+                        <span class="text-xs">Sanction</span>
+                    </div>
+                    <div class="draggable p-3 bg-darkBg border border-borderColor rounded text-center flex flex-col items-center justify-center space-y-2 hover:bg-gray-800" draggable="true" ondragstart="drag(event, 'exportban')">
+                        <i class="fa-solid fa-plane-slash text-orange-500 text-lg"></i>
+                        <span class="text-xs">Export Ban</span>
+                    </div>
+                    <div class="draggable p-3 bg-darkBg border border-borderColor rounded text-center flex flex-col items-center justify-center space-y-2 hover:bg-gray-800" draggable="true" ondragstart="drag(event, 'war')">
+                        <i class="fa-solid fa-explosion text-yellow-500 text-lg"></i>
+                        <span class="text-xs">Conflict</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <section class="flex-grow flex flex-col relative">
+            <div class="flex-grow relative" ondrop="dropNode(event)" ondragover="allowDrop(event)">
+                <div id="cy"></div>
+                <div id="sim-loader" class="absolute inset-0 bg-darkBg/80 flex items-center justify-center hidden z-10">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-brandBlue"></div>
+                </div>
+            </div>
+
+            <div class="h-[200px] shrink-0 flex border-t border-borderColor bg-panelBg">
+                <div class="w-1/3 border-r border-borderColor p-4 flex flex-col justify-center space-y-4">
+                    <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center"><i class="fa-solid fa-chart-simple mr-2 text-brandBlue"></i> Metrics</h4>
+                    <div class="flex justify-between items-end">
+                        <span class="text-gray-400 text-sm">Avg Supply</span>
+                        <span id="metric-supply" class="text-2xl font-bold text-green-400">100%</span>
+                    </div>
+                    <div class="w-full bg-darkBg rounded-full h-2 mt-1">
+                        <div id="bar-supply" class="bg-green-400 h-2 rounded-full transition-all duration-500" style="width: 100%"></div>
+                    </div>
+                    <div class="flex justify-between items-end mt-4">
+                        <span class="text-gray-400 text-sm">Global GDP Impact</span>
+                        <span id="metric-gdp" class="text-xl font-bold text-white">-$0B</span>
+                    </div>
+                </div>
+                <div class="w-2/3 p-4 flex flex-col">
+                    <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center mb-3"><i class="fa-solid fa-bell mr-2 text-red-500"></i> Alerts</h4>
+                    <div id="alerts-container" class="flex-grow overflow-y-auto space-y-2">
+                        <div class="text-sm text-gray-500 italic">No active alerts. System operating normally.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <main id="map" class="tab-content flex-col w-full bg-darkBg relative">
+        <div class="absolute top-6 right-6 z-[1000]">
+            <button onclick="triggerSimulation()" class="bg-panelBg border border-borderColor hover:border-brandBlue text-white px-4 py-2 rounded shadow-lg flex items-center space-x-2 transition">
+                <i class="fa-solid fa-play text-brandBlue"></i>
+                <span class="font-semibold text-sm">Play Simulation</span>
+            </button>
+        </div>
+
+        <div class="space-y-4">
+            <div class="flex justify-between items-center text-xs text-gray-400">
+                <span>Timeline Slider</span>
+                <span id="dayDisplay" class="text-brandBlue font-mono">Day: 0 / 90</span>
+            </div>
+            <input type="range" id="timelineSlider" min="0" max="89" value="0" 
+                class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-brandBlue">
+        </div>
+
+        <div class="h-[80%] w-full" id="mapContainer"></div>
+
+        <div class="h-[20%] flex border-t border-borderColor bg-panelBg">
+            <div class="w-1/3 border-r border-borderColor p-4 flex flex-col justify-center">
+                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Live Data Panel (APIs)</h4>
+                <div class="flex justify-between items-center bg-darkBg p-2 rounded border border-borderColor mb-2">
+                    <span class="text-sm text-gray-400">Oil Price (WTI)</span>
+                    <span id="api-oil" class="font-bold text-red-400">$84.50 <i class="fa-solid fa-arrow-up text-xs"></i></span>
+                </div>
+                <div class="flex justify-between items-center bg-darkBg p-2 rounded border border-borderColor">
+                    <span class="text-sm text-gray-400">GDP Trend Index</span>
+                    <span id="api-gdp" class="font-bold text-green-400">102.4 <i class="fa-solid fa-arrow-up text-xs"></i></span>
+                </div>
+            </div>
+            
+            <div class="w-2/3 p-6 flex flex-col justify-center">
+                <div class="flex justify-between items-center mb-4">
+                    <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Timeline Slider</h4>
+                    <span class="text-brandBlue font-mono text-sm">Day: <span id="timeline-val">0</span> / 90</span>
+                </div>
+                <input type="range" id="timeline-slider" min="0" max="90" value="0" oninput="updateTimeline(this.value)">
+            </div>
+        </div>
+    </main>
+
+    <main id="analytics" class="tab-content flex-col w-full bg-darkBg p-6 overflow-y-auto space-y-6">
+        
+        <div class="grid grid-cols-4 gap-4">
+            <div class="bg-panelBg border border-borderColor p-4 rounded-lg flex flex-col justify-between">
+                <span class="text-xs text-gray-400 uppercase font-semibold">Avg Supply</span>
+                <span id="kpi-supply" class="text-2xl font-bold text-green-400 mt-2">100%</span>
+            </div>
+            <div class="bg-panelBg border border-borderColor p-4 rounded-lg flex flex-col justify-between">
+                <span class="text-xs text-gray-400 uppercase font-semibold">GDP Impact</span>
+                <span id="kpi-gdp" class="text-2xl font-bold mt-2">-$0B</span>
+            </div>
+            <div class="bg-panelBg border border-borderColor p-4 rounded-lg flex flex-col justify-between">
+                <span class="text-xs text-gray-400 uppercase font-semibold">Risk Level</span>
+                <span id="kpi-risk" class="text-2xl font-bold text-green-400 mt-2">Low</span>
+            </div>
+            <div class="bg-panelBg border border-borderColor p-4 rounded-lg flex flex-col justify-between">
+                <span class="text-xs text-gray-400 uppercase font-semibold">Affected Nodes</span>
+                <span id="kpi-nodes" class="text-2xl font-bold text-white mt-2">0</span>
+            </div>
+        </div>
+
+        <div class="bg-panelBg border border-borderColor p-4 rounded-lg w-full h-[300px]">
+            <h4 class="text-xs text-gray-400 uppercase font-semibold mb-2">Time vs Supply (Global Avg)</h4>
+            <canvas id="lineChart"></canvas>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 h-[300px]">
+            <div class="bg-panelBg border border-borderColor p-4 rounded-lg flex flex-col">
+                <h4 class="text-xs text-gray-400 uppercase font-semibold mb-2">Sector Impact (Bar Chart)</h4>
+                <div class="flex-grow relative"><canvas id="barChart"></canvas></div>
+            </div>
+            <div class="bg-panelBg border border-borderColor p-4 rounded-lg flex flex-col overflow-hidden">
+                <h4 class="text-xs text-gray-400 uppercase font-semibold mb-2">Regional Heatmap</h4>
+                <div id="heatmap-container" class="flex-grow grid grid-cols-4 gap-2 pt-2">
+                    </div>
+            </div>
+        </div>
+
+        <div class="bg-panelBg border border-borderColor p-4 rounded-lg w-full h-[300px] flex">
+            <div class="w-1/2 flex flex-col justify-center items-center">
+                <h4 class="text-xs text-gray-400 uppercase font-semibold mb-4 w-full">Impact Distribution</h4>
+                <div class="h-[200px] w-[200px]"><canvas id="pieChart"></canvas></div>
+            </div>
+            <div class="w-1/2 flex flex-col justify-center">
+                <ul id="pie-legend" class="space-y-2 text-sm text-gray-300"></ul>
+            </div>
+        </div>
+
+        <div class="bg-panelBg border border-borderColor p-4 rounded-lg w-full">
+            <h4 class="text-xs text-gray-400 uppercase font-semibold mb-2"><i class="fa-solid fa-file-lines text-brandBlue mr-2"></i> Trend Summary</h4>
+            <p id="analytics-summary" class="font-mono text-sm text-gray-300">System operating at baseline. No disruptions detected across dependent nodes.</p>
+        </div>
+    </main>
+
+    <main id="insights" class="tab-content flex-col w-full bg-darkBg p-6 overflow-y-auto space-y-6">
+        
+        <div class="bg-panelBg border border-borderColor p-5 rounded-lg border-l-4 border-l-brandBlue">
+            <h3 class="text-sm font-bold text-gray-400 flex items-center mb-3"><i class="fa-solid fa-brain text-purple-400 mr-2"></i> AI Summary</h3>
+            <p id="ai-summary" class="text-white text-base">Awaiting simulation data to generate AI insights and determine cascading effects.</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+            <div class="bg-panelBg border border-borderColor p-5 rounded-lg">
+                <h3 class="text-sm font-bold text-gray-400 flex items-center mb-3"><i class="fa-solid fa-magnifying-glass text-blue-400 mr-2"></i> Root Cause</h3>
+                <div id="insight-root" class="text-gray-300 text-sm">-</div>
+            </div>
+            <div class="bg-panelBg border border-borderColor p-5 rounded-lg">
+                <h3 class="text-sm font-bold text-gray-400 flex items-center mb-3"><i class="fa-solid fa-link text-green-400 mr-2"></i> Cascade Path</h3>
+                <div id="insight-cascade" class="text-gray-300 text-sm font-mono">-</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+            <div class="bg-panelBg border border-borderColor p-5 rounded-lg">
+                <h3 class="text-sm font-bold text-gray-400 flex items-center mb-3"><i class="fa-solid fa-triangle-exclamation text-yellow-400 mr-2"></i> Risk Assessment</h3>
+                <div id="insight-risk" class="text-gray-300 text-sm">-</div>
+            </div>
+            <div class="bg-panelBg border border-borderColor p-5 rounded-lg">
+                <h3 class="text-sm font-bold text-gray-400 flex items-center mb-3"><i class="fa-solid fa-network-wired text-orange-400 mr-2"></i> Dependency Analysis</h3>
+                <ul id="insight-dep" class="list-disc pl-5 text-gray-300 text-sm space-y-1">
+                    <li>-</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="bg-panelBg border border-borderColor p-5 rounded-lg">
+            <h3 class="text-sm font-bold text-gray-400 flex items-center mb-3"><i class="fa-solid fa-lightbulb text-yellow-300 mr-2"></i> Recommendations</h3>
+            <ul id="insight-rec" class="space-y-2 font-mono text-sm text-gray-300 bg-darkBg p-4 rounded border border-borderColor">
+                <li>- Run a simulation to generate strategic recommendations.</li>
+            </ul>
+        </div>
+
+        <div class="bg-panelBg border border-borderColor p-5 rounded-lg border-dashed">
+            <h3 class="text-sm font-bold text-gray-400 flex items-center mb-3"><i class="fa-solid fa-code-compare text-teal-400 mr-2"></i> Scenario Comparison (Optional)</h3>
+            <div class="text-gray-500 text-sm italic">Historical scenario comparisons will appear here once multiple shocks are simulated.</div>
+        </div>
+
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

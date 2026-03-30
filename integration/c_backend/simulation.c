@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #define MAX_NODES 50
 #define NAME_LEN 50
+#define SIM_DAYS 90
 
 #ifdef _WIN32
 #define strcasecmp _stricmp
@@ -74,91 +76,70 @@ float get_multiplier(char *shock_type) {
 }
 
 // ---------------- SIMULATION ----------------
-void simulate(int source, float reduction, char *shock_type) {
-
-    float impact[MAX_NODES] = {0};
-    int visited[MAX_NODES] = {0};
-
-    int queue[MAX_NODES];
-    int front = 0, rear = 0;
-
+void simulate_90_days(int source, float reduction, char *shock_type) {
+    float daily_supply[SIM_DAYS];
     float multiplier = get_multiplier(shock_type);
+    
+    // Calculate the initial impact depth
+    float max_impact = reduction * multiplier;
+    if (max_impact > 100) max_impact = 100;
 
-    impact[source] = reduction;
-    queue[rear++] = source;
-    visited[source] = 1;
+    // Simulation Constants
+    float recovery_rate = 0.05; // 5% recovery toward baseline per day
+    float shock_delay = 5;      // Peak impact hits on day 5
 
-    while(front < rear) {
-
-        int curr = queue[front++];
-
-        for(int i = 0; i < node_count; i++) {
-
-            if(adj[curr][i] > 0) {
-
-                float transfer = impact[curr] * 0.6 * multiplier;
-
-                // decay
-                transfer *= 0.85;
-
-                if(impact[i] < transfer)
-                    impact[i] = transfer;
-
-                if(impact[i] > 100)
-                    impact[i] = 100;
-
-                if(!visited[i]) {
-                    queue[rear++] = i;
-                    visited[i] = 1;
-                }
-            }
+    for (int day = 0; day < SIM_DAYS; day++) {
+        if (day < shock_delay) {
+            // Day 0-5: Supply drops linearly to the peak impact
+            float drop_progress = (float)day / shock_delay;
+            daily_supply[day] = 100 - (max_impact * drop_progress);
+        } else {
+            // Day 6-90: Gradual recovery using an exponential decay towards 100%
+            int days_since_peak = day - (int)shock_delay;
+            // Formula: Current = 100 - (Remaining_Impact * e^(-recovery_rate * time))
+            daily_supply[day] = 100 - (max_impact * exp(-recovery_rate * days_since_peak));
         }
     }
 
-    // ---------------- OUTPUT ----------------
-    for(int i = 0; i < node_count; i++) {
-
-        float remaining = nodes[i].supply - impact[i];
+    // --- UPDATED OUTPUT FORMAT ---
+    // Part 1: Node State (Snapshot)
+    for (int i = 0; i < node_count; i++) {
+        // We use Day 5 (peak impact) for the node status dots
+        float peak_impact = (i == source) ? max_impact : (max_impact * 0.4); 
+        float remaining = 100 - peak_impact;
         if(remaining < 0) remaining = 0;
-
+        
         printf("%s|%s|%.0f", nodes[i].country, nodes[i].resource, remaining);
+        if(i != node_count - 1) printf(";");
+    }
 
-        if(i != node_count - 1)
-            printf(";");
+    // Part 2: Separator for the History Array
+    printf("HISTORY_START");
+
+    // Part 3: 90-Day Array (For the Line Chart)
+    for (int d = 0; d < SIM_DAYS; d++) {
+        printf("%.1f", daily_supply[d]);
+        if (d != SIM_DAYS - 1) printf(",");
     }
 
     fflush(stdout);
 }
 
-// ---------------- MAIN ----------------
-int main() {
+// Main 
 
-    char country[NAME_LEN];
-    char resource[NAME_LEN];
-    char shock_type[NAME_LEN];
+int main() {
+    char country[NAME_LEN], resource[NAME_LEN], shock_type[NAME_LEN];
     float reduction;
 
-    // Input from frontend
-    if(scanf("%s %s %s %f", country, resource, shock_type, &reduction) != 4) {
-        printf("InvalidInput");
-        return 1;
-    }
-
-    if(reduction < 0 || reduction > 100) {
-        printf("InvalidReduction");
-        return 1;
-    }
+    // Read input from Flask (stdin)
+    if (scanf("%s %s %s %f", country, resource, shock_type, &reduction) != 4) return 1;
 
     init_graph();
-
     int source = find_node(country, resource);
+    if (source == -1) return 1;
 
-    if(source == -1) {
-        printf("NodeNotFound");
-        return 1;
-    }
-
-    simulate(source, reduction, shock_type);
+    // Run the new 90-day simulation
+    simulate_90_days(source, reduction, shock_type);
 
     return 0;
 }

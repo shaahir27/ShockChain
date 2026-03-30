@@ -1,39 +1,33 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
 import subprocess
 import os
+from flask import render_template
 
-app = Flask(__name__)
-CORS(app)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TMPL_DIR = os.path.join(BASE_DIR, "Frontend", "templates")
+STATIC_DIR = os.path.join(BASE_DIR, "Frontend")
+
+app = Flask(__name__, \
+            template_folder=TMPL_DIR,
+            static_folder=STATIC_DIR)
 
 # =========================
-# 🏠 HOME + HEALTH
+# 🧹 CLEAN INPUT
 # =========================
-@app.route("/")
-def home():
-    return jsonify({
-        "message": "ShockChain API running 🚀",
-        "endpoints": {
-            "/simulate": "POST → run simulation",
-            "/health": "GET → server status"
-        }
-    })
-
-
-@app.route("/health")
-def health():
-    return jsonify({"status": "ok"})
+def clean(text):
+    return text.strip() if text else ""
 
 
 # =========================
 # ⚙️ RUN C PROGRAM
 # =========================
-def run_c_program(country, resource, shock):
+def run_c_program(country, resource, shock, reduction):
+
     try:
-        exe_path = os.path.join("integration", "c_backend", "simulation.exe")
+        exe_path = os.path.join(os.getcwd(), "integration", "c_backend", "simulation.exe")
 
         if not os.path.exists(exe_path):
-            print("❌ simulation.exe not found")
+            print("❌ simulation.exe not found at:", exe_path)
             return ""
 
         process = subprocess.Popen(
@@ -44,12 +38,7 @@ def run_c_program(country, resource, shock):
             text=True
         )
 
-        # Clean input
-        country_clean = country.replace(" ", "")
-        resource_clean = resource.replace(" ", "")
-        shock_clean = shock.replace(" ", "")
-
-        input_data = f"{country_clean} {resource_clean} {shock_clean} 30\n"
+        input_data = f"{clean(country)} {clean(resource)} {clean(shock)} {reduction}\n"
 
         print("INPUT →", input_data)
 
@@ -64,41 +53,52 @@ def run_c_program(country, resource, shock):
 
     except subprocess.TimeoutExpired:
         process.kill()
-        print("❌ C timeout")
+        print("❌ C program timeout")
         return ""
 
     except Exception as e:
-        print("❌ Error running C:", e)
+        print("❌ Error running C program:", e)
         return ""
 
 
 # =========================
-# 🔄 PARSE OUTPUT
+# 🔄 PARSE OUTPUT (UPDATED)
 # =========================
 def parse_output(output):
-    result = {}
+    result_nodes = {}
+    history_array = []
 
     try:
-        if not output:
-            return {}
+        if not output or any(err in output for err in ["Error", "NodeNotFound", "Invalid"]):
+            return {}, []
 
-        items = output.split(";")
-
+        # SPLIT the output at our new marker
+        parts = output.split("HISTORY_START")
+        
+        # --- Handle Node Snapshots (Part 1) ---
+        node_section = parts[0]
+        items = node_section.strip(";").split(";")
         for item in items:
-            if ":" not in item:
-                continue
+            p = item.split("|")
+            if len(p) == 3:
+                country, resource, value = p
+                key = f"{country}_{resource}"
+                result_nodes[key] = int(float(value))
 
-            name, value = item.split(":")
-            result[name.strip()] = int(float(value))
+        # --- Handle History Array (Part 2) ---
+        if len(parts) > 1:
+            history_str = parts[1].strip()
+            # Convert "90.5,88.2,..." into [90.5, 88.2, ...]
+            history_array = [float(x) for x in history_str.split(",") if x]
 
     except Exception as e:
         print("Parsing error:", e)
 
-    return result
+    return result_nodes, history_array
 
 
 # =========================
-# 🧠 HELPERS
+# 🧠 SPLIT NODE
 # =========================
 def split_node(node):
     parts = node.split("_")
@@ -112,13 +112,9 @@ def split_node(node):
 # 📊 METRICS
 # =========================
 def calculate_metrics(data):
+
     if not data:
-        return {
-            "avgSupply": 0,
-            "totalGDP": 0,
-            "riskLevel": "Low",
-            "affectedNodes": 0
-        }
+        return {"avgSupply": 0, "totalGDP": 0, "riskLevel": "Low"}
 
     avg = sum(data.values()) / len(data)
     gdp = sum(data.values()) * 10
@@ -133,35 +129,32 @@ def calculate_metrics(data):
     return {
         "avgSupply": round(avg, 2),
         "totalGDP": gdp,
-        "riskLevel": risk,
-        "affectedNodes": len(data)
+        "riskLevel": risk
     }
 
 
 # =========================
-# 🚨 ALERTS
+# 🚨 ALERTS (GENERIC)
 # =========================
 def generate_alerts(data):
+
     alerts = []
 
     for node, value in data.items():
         info = split_node(node)
-        country = info["country"]
 
-        if value < 30:
-            alerts.append(f"{country} collapse risk")
-        elif value < 50:
-            alerts.append(f"{country} supply critically low")
+        if value < 50:
+            alerts.append(f"{info['country']} {info['resource']} critically low")
         elif value <= 70:
-            alerts.append(f"{country} under stress")
+            alerts.append(f"{info['country']} {info['resource']} under stress")
 
-    # Global alerts
     if any(v < 75 for v in data.values()):
         alerts.append("Global economic slowdown risk")
 
-    for node in data:
-        if "Oil" in node and data[node] < 75:
-            alerts.append("Global oil supply disruption detected")
+    for node, val in data.items():
+        info = split_node(node)
+        if val < 75:
+            alerts.append(f"{info['resource']} supply disruption detected")
 
     return list(set(alerts))
 
@@ -170,21 +163,18 @@ def generate_alerts(data):
 # 🧠 INSIGHTS
 # =========================
 def generate_insights(country, resource, parsed):
+
     insights = []
 
     insights.append(
-        f"{resource} disruption in {country} is causing cascading impacts across global supply chains."
+        f"{resource} shock in {country} triggered cascading global effects."
     )
 
     if parsed:
         worst = min(parsed, key=parsed.get)
         worst_info = split_node(worst)
 
-        insights.append(
-            f"Most affected region: {worst_info['country']} ({parsed[worst]}% supply remaining)"
-        )
-
-    insights.append("Recommendation: Diversify suppliers and increase reserves.")
+        insights.append(f"Most affected region: {worst_info['country']} ({worst_info['resource']})")
 
     return insights
 
@@ -192,13 +182,10 @@ def generate_insights(country, resource, parsed):
 # =========================
 # 🏗️ BUILD RESPONSE
 # =========================
-def build_response(parsed, country, resource):
-
+def build_response(parsed_nodes, history, country, resource):
     nodes = {}
-
-    for k, v in parsed.items():
+    for k, v in parsed_nodes.items():
         info = split_node(k)
-
         nodes[k] = {
             "country": info["country"],
             "resource": info["resource"],
@@ -207,49 +194,48 @@ def build_response(parsed, country, resource):
 
     return {
         "nodes": nodes,
-        "metrics": calculate_metrics(parsed),
-        "alerts": generate_alerts(parsed),
-        "insights": generate_insights(country, resource, parsed)
+        "history": history,  # <--- NEW: Sending the 90-day array to JS
+        "metrics": calculate_metrics(parsed_nodes),
+        "alerts": generate_alerts(parsed_nodes),
+        "insights": generate_insights(country, resource, parsed_nodes)
     }
 
+# =========================
+# 🚀 API ROUTE
+# =========================
 
-# =========================
-# 🚀 SIMULATION API
-# =========================
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+
 @app.route('/simulate', methods=['POST'])
 def simulate():
-
-    data = request.json
-
+    data = request.json or {}
     country = data.get("country")
     resource = data.get("resource")
     shock = data.get("shock")
+    reduction = data.get("reduction", 30)
 
+    # 🔵 INITIAL LOAD (Default 100% data)
     if not country or not resource or not shock:
-        return jsonify({"error": "Missing required fields"}), 400
-
-    print(f"REQUEST → {country}, {resource}, {shock}")
-
-    # Run C backend
-    output = run_c_program(country, resource, shock)
-
-    parsed = parse_output(output)
-
-    # Fallback (IMPORTANT FOR DEMO)
-    if not parsed:
-        print("⚠️ Using fallback demo data")
-
-        parsed = {
-            "USA_Tech": 80,
-            "China_Manufacturing": 75,
-            "India_Pharmaceuticals": 85,
-            "SaudiArabia_Oil": 70,
-            "Germany_Auto": 78
+        parsed_nodes = {
+            "MiddleEast_Oil": 100, "India_Oil": 100, "India_Wheat": 100,
+            "China_Manufacturing": 100, "USA_Tech": 100, "SouthKorea_Semiconductors": 100
         }
+        history = [100] * 90 # Flat line for initial state
+        return jsonify(build_response(parsed_nodes, history, "Global", "None"))
 
-    response = build_response(parsed, country, resource)
+    # 🔴 RUN SIMULATION
+    output = run_c_program(country, resource, shock, reduction)
+    
+    # Get both the nodes and the history array
+    parsed_nodes, history = parse_output(output)
 
-    return jsonify(response)
+    if not parsed_nodes:
+        return jsonify({"error": "Simulation failed"}), 400
+
+    return jsonify(build_response(parsed_nodes, history, country, resource))
 
 
 # =========================

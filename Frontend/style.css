@@ -1,116 +1,94 @@
 body {
   margin: 0;
-  font-family: Arial;
-  background: #0f172a;
-  color: white;
+  font-family: 'Segoe UI', sans-serif;
+  background: #f4f6fb;
 }
 
 /* HEADER */
-header {
-  text-align: center;
-  padding: 15px;
-  font-size: 22px;
+.header {
+  display: flex;
+  justify-content: space-between;
+  padding: 20px;
+}
+
+.live-badge {
+  background: #eef2ff;
+  padding: 8px 12px;
+  border-radius: 20px;
+}
+
+.live-badge .dot {
+  width: 8px;
+  height: 8px;
+  background: green;
+  border-radius: 50%;
+  display: inline-block;
 }
 
 /* TABS */
-nav {
+.tabs {
   display: flex;
-  justify-content: center;
-  gap: 15px;
-  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 20px;
 }
 
 .tab {
-  background: transparent;
-  border: none;
-  color: white;
-  padding: 10px;
+  flex: 1;
+  padding: 15px;
+  background: white;
+  border-radius: 15px;
+  text-align: center;
   cursor: pointer;
 }
 
 .tab.active {
-  border-bottom: 2px solid #3b82f6;
-  color: #3b82f6;
-}
-
-/* TAB CONTENT */
-.tab-content {
-  display: none;
-}
-
-.tab-content.active {
-  display: block;
+  background: linear-gradient(135deg, #6366f1, #3b82f6);
+  color: white;
 }
 
 /* MAP */
-.container {
-  display: flex;
-  height: 70vh;
+.map-container {
+  position: relative;
+  padding: 15px;
 }
 
 #map {
-  flex: 3;
+  height: 60vh;
+  border-radius: 20px;
 }
 
+/* LEGEND */
+.legend {
+  position: absolute;
+  top: 30px;
+  right: 30px;
+  background: white;
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+/* PANEL */
 .panel {
-  flex: 1;
   padding: 15px;
-  background: rgba(255,255,255,0.05);
 }
 
-/* NETWORK */
-.network-container {
-  padding: 20px;
-}
-
-#networkGraph {
-  height: 400px;
-  background: #1e293b;
+select, button {
+  padding: 10px;
+  margin: 5px;
 }
 
 /* ANALYTICS */
-.analytics-container {
+.analytics {
   padding: 20px;
-}
-
-.kpi {
-  display: flex;
-  justify-content: space-around;
-  margin-bottom: 20px;
-}
-
-canvas {
-  margin-bottom: 20px;
 }
 
 /* INSIGHTS */
-.insights-container {
+.insights {
   padding: 20px;
 }
 
-/* SLIDER */
-.slider-container {
-  text-align: center;
-  padding: 10px;
-}
-
-/* 📱 MOBILE RESPONSIVE */
-@media (max-width: 768px) {
-
-  .container {
-    flex-direction: column;
-  }
-
-  #map {
-    height: 300px;
-  }
-
-  .panel {
-    width: 100%;
-  }
-
-  .kpi {
-    flex-direction: column;
-    gap: 10px;
-  }
-}
+/* DOT COLORS */
+.green { background: #16a34a; }
+.yellow { background: #f59e0b; }
+.red { background: #dc2626; }
