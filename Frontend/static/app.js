@@ -13,125 +13,188 @@ let currentSimulationData = null;
 let propagationSteps = [];
 
 const defaultNodes = [
-    { data: { id: 'MiddleEast_Oil', label: 'Middle East (Oil)', type: 'source', lat: 25.0, lng: 45.0 } },
+    // 🌍 OIL PRODUCERS
+    { data: { id: 'Saudi_Oil', label: 'Saudi Arabia (Oil)', type: 'source', lat: 24, lng: 45 } },
+    { data: { id: 'Iran_Oil', label: 'Iran (Oil)', type: 'source', lat: 32, lng: 53 } },
+    { data: { id: 'Iraq_Oil', label: 'Iraq (Oil)', type: 'source', lat: 33, lng: 44 } },
+
+    // 🚢 TRADE HUB
+    { data: { id: 'Suez_Trade', label: 'Suez Canal', type: 'hub', lat: 30, lng: 32.5 } },
+
+    // 🌏 DEMAND NODES
     { data: { id: 'India_Oil', label: 'India (Oil)', type: 'node', lat: 20.5, lng: 78.9 } },
-    { data: { id: 'India_Wheat', label: 'India (Wheat)', type: 'node', lat: 22.0, lng: 77.0 } },
     { data: { id: 'China_Oil', label: 'China (Oil)', type: 'node', lat: 35.8, lng: 104.1 } },
-    { data: { id: 'China_Manufacturing', label: 'China (Mfg)', type: 'node', lat: 33.0, lng: 110.0 } },
-    { data: { id: 'USA_Tech', label: 'USA (Tech)', type: 'node', lat: 37.0, lng: -95.7 } },
+
+    // 🌾 OTHER
+    { data: { id: 'India_Wheat', label: 'India (Wheat)', type: 'node', lat: 22, lng: 77 } },
+
+    // 🏭 MANUFACTURING
+    { data: { id: 'China_Manufacturing', label: 'China (Mfg)', type: 'node', lat: 33, lng: 110 } },
+    { data: { id: 'Vietnam_Manufacturing', label: 'Vietnam (Mfg)', type: 'node', lat: 14, lng: 108.2 } },
+
+    // 💻 TECH
+    { data: { id: 'USA_Tech', label: 'USA (Tech)', type: 'node', lat: 37, lng: -95.7 } },
     { data: { id: 'SouthKorea_Semiconductors', label: 'S.Korea (Semi)', type: 'node', lat: 35.9, lng: 127.7 } },
-    { data: { id: 'Vietnam_Manufacturing', label: 'Vietnam (Mfg)', type: 'node', lat: 14.0, lng: 108.2 } }
+
+    // 🇪🇺 EUROPE
+    { data: { id: 'France_Energy', label: 'France (Energy)', type: 'node', lat: 46.2, lng: 2.2 } },
+    { data: { id: 'UK_Finance', label: 'UK (Finance)', type: 'node', lat: 55, lng: -3.4 } }
 ];
 
+const NODE_MAP = Object.fromEntries(
+    defaultNodes.map(n => [n.data.id, n.data])
+);
+
 const defaultEdges = [
-    { data: { source: 'MiddleEast_Oil', target: 'India_Oil' } },
-    { data: { source: 'MiddleEast_Oil', target: 'China_Oil' } },
+    { data: { source: 'Saudi_Oil', target: 'Suez_Trade' } },
+    { data: { source: 'Iran_Oil', target: 'Suez_Trade' } },
+    { data: { source: 'Iraq_Oil', target: 'Suez_Trade' } },
+
+    { data: { source: 'Suez_Trade', target: 'India_Oil' } },
+    { data: { source: 'Suez_Trade', target: 'China_Oil' } },
+
     { data: { source: 'India_Oil', target: 'India_Wheat' } },
     { data: { source: 'China_Oil', target: 'China_Manufacturing' } },
     { data: { source: 'China_Manufacturing', target: 'Vietnam_Manufacturing' } },
-    { data: { source: 'SouthKorea_Semiconductors', target: 'USA_Tech' } }
+
+    { data: { source: 'SouthKorea_Semiconductors', target: 'USA_Tech' } },
+
+    { data: { source: 'Suez_Trade', target: 'France_Energy' } },
+    { data: { source: 'France_Energy', target: 'UK_Finance' } }
 ];
 
 const GRAPH_ADJACENCY = {
-    'MiddleEast_Oil': ['India_Oil', 'China_Oil'],
-    'India_Oil': ['India_Wheat'],
-    'China_Oil': ['China_Manufacturing'],
-    'China_Manufacturing': ['Vietnam_Manufacturing'],
-    'SouthKorea_Semiconductors': ['USA_Tech'],
-    'India_Wheat': [],
-    'Vietnam_Manufacturing': [],
-    'USA_Tech': []
+    Saudi_Oil: ['Suez_Trade'],
+    Iran_Oil: ['Suez_Trade'],
+    Iraq_Oil: ['Suez_Trade'],
+
+    Suez_Trade: ['India_Oil', 'China_Oil', 'France_Energy'],
+
+    India_Oil: ['India_Wheat'],
+    China_Oil: ['China_Manufacturing'],
+    China_Manufacturing: ['Vietnam_Manufacturing'],
+
+    SouthKorea_Semiconductors: ['USA_Tech'],
+
+    France_Energy: ['UK_Finance'],
+
+    India_Wheat: [],
+    Vietnam_Manufacturing: [],
+    USA_Tech: [],
+    UK_Finance: []
 };
 
 const ALERT_RULES = {
     oil: {
-        MiddleEast: [
-            "Critical oil supply disruption in Middle East — global energy markets at risk.",
-            "OPEC production capacity constrained. Brent crude prices surging.",
-            "Middle East oil infrastructure under stress. Downstream refineries impacted."
+        India: [
+            "India oil imports under pressure — fuel inflation risk rising.",
+            "Energy supply shock impacting Indian industrial output.",
+            "Oil dependency stress affecting South Asian economies."
         ],
         China: [
             "China oil imports disrupted — manufacturing slowdown imminent.",
-            "Chinese industrial output at risk due to energy supply shock.",
-            "Beijing energy reserves being drawn down. Regional supply chains at risk."
+            "Industrial output at risk due to energy constraints.",
+            "Energy reserves being drawn down to stabilize supply."
         ],
-        India: [
-            "India oil imports under pressure — fuel subsidies at risk.",
-            "Indian economy facing energy cost inflation from oil shock.",
-            "South Asian energy corridor disrupted. Neighboring states affected."
+        Europe: [
+            "European energy markets destabilized due to oil supply disruption.",
+            "Refinery operations under pressure across EU region.",
+            "Energy import dependency increasing systemic risk."
         ],
         default: [
-            "Oil supply shock detected. Global energy markets destabilized.",
-            "Downstream fuel-dependent industries entering warning state.",
-            "Energy price inflation propagating across dependent nodes."
+            "Oil supply disruption detected. Global energy markets reacting.",
+            "Fuel-dependent industries entering instability.",
+            "Energy price inflation spreading across dependent nodes."
         ]
     },
+
     war: {
         MiddleEast: [
-            "Armed conflict in Middle East — Strait of Hormuz shipping routes at risk.",
-            "War-level disruption to oil transit corridors. Insurance premiums spiking.",
-            "Regional conflict causing panic buying across commodity markets."
+            "Conflict in Middle East threatening oil transport corridors.",
+            "Regional instability impacting global energy logistics.",
+            "Shipping routes near Gulf under risk."
         ],
-        China: [
-            "Military conflict scenario: South China Sea shipping routes threatened.",
-            "East Asian trade corridors at risk. Semiconductor supply chain disrupted.",
-            "Taiwan Strait stability deteriorating — tech manufacturing severely impacted."
+        Asia: [
+            "Conflict scenario disrupting major Asian trade routes.",
+            "Supply chain instability across regional economies.",
+            "Industrial output facing geopolitical risks."
         ],
-        India: [
-            "Conflict near Indian subcontinent — Bay of Bengal trade routes threatened.",
-            "South Asian conflict escalating supply chain disruptions regionally."
+        Europe: [
+            "Geopolitical conflict affecting European trade routes.",
+            "Defense and energy sectors entering high-risk state."
         ],
         default: [
             "Armed conflict shock propagating through supply network.",
-            "Trade routes disrupted. Insurance and logistics costs escalating.",
-            "War-level event detected. Critical node resilience below threshold."
+            "Trade routes disrupted. Logistics costs rising.",
+            "Critical infrastructure under stress due to conflict."
         ]
     },
+
     sanction: {
         USA: [
-            "US tech export sanctions imposed — semiconductor access restricted.",
-            "American trade restrictions cutting off advanced component supply.",
-            "Sanction regime impacting allied tech supply chains globally."
+            "US sanctions impacting global tech supply chains.",
+            "Export restrictions affecting semiconductor access.",
+            "Financial controls disrupting international trade."
         ],
         China: [
             "Sanctions on China disrupting global manufacturing inputs.",
-            "Chinese export controls triggering retaliatory supply restrictions.",
-            "Sanctions cascading: China manufacturing to Vietnam to global assembly."
+            "Export controls triggering supply chain instability.",
+            "Manufacturing networks cascading into regional disruptions."
+        ],
+        Europe: [
+            "Sanctions affecting European economic flows.",
+            "Trade restrictions impacting cross-border dependencies."
         ],
         default: [
             "Economic sanctions applied. Trade volumes contracting.",
-            "Sanction-related export bans triggering secondary supply disruptions.",
-            "Financial isolation of affected node reduces downstream supply flow."
+            "Export bans triggering downstream supply disruptions.",
+            "Financial isolation reducing node connectivity."
         ]
     },
+
     exportban: {
         India: [
-            "India wheat export ban activated — food security risk in importing nations.",
-            "Indian agricultural export restriction: South Asian food supply chain strained.",
-            "Wheat export ban causing price spikes in Middle East and Africa."
+            "India export restrictions affecting regional supply chains.",
+            "Agricultural exports halted — food supply instability rising.",
+            "South Asian trade networks disrupted."
         ],
         China: [
-            "China export ban on rare earth materials — tech sector severely affected.",
-            "Chinese component export restrictions hitting semiconductor fabs globally.",
-            "Export ban from China impacting global EV and electronics supply chains."
+            "China export ban impacting global manufacturing inputs.",
+            "Component shortages affecting global production lines.",
+            "Supply bottlenecks forming across tech industries."
+        ],
+        Europe: [
+            "European export restrictions affecting global trade balance.",
+            "Supply chain adjustments underway due to export limits."
         ],
         default: [
-            "Export ban detected. Downstream importers entering critical supply state.",
-            "Trade flow cessation detected. Substitute sourcing routes insufficient.",
-            "Export restriction causing inventory depletion across dependent nodes."
+            "Export ban detected. Downstream nodes entering stress.",
+            "Trade flow disruption causing supply shortages.",
+            "Inventory depletion across dependent nodes."
         ]
     }
 };
 
 const NODE_META = {
-    'MiddleEast_Oil':            { region: 'Middle East', sector: 'Oil',           connectivity: 4, gdpWeight: 0.18 },
-    'India_Oil':                 { region: 'India',       sector: 'Oil',           connectivity: 2, gdpWeight: 0.12 },
-    'India_Wheat':               { region: 'India',       sector: 'Agriculture',   connectivity: 1, gdpWeight: 0.08 },
-    'China_Oil':                 { region: 'China',       sector: 'Oil',           connectivity: 2, gdpWeight: 0.14 },
-    'China_Manufacturing':       { region: 'China',       sector: 'Manufacturing', connectivity: 3, gdpWeight: 0.20 },
-    'USA_Tech':                  { region: 'USA',         sector: 'Technology',    connectivity: 2, gdpWeight: 0.22 },
-    'SouthKorea_Semiconductors': { region: 'South Korea', sector: 'Semiconductors',connectivity: 2, gdpWeight: 0.14 },
-    'Vietnam_Manufacturing':     { region: 'Vietnam',     sector: 'Manufacturing', connectivity: 1, gdpWeight: 0.07 }
+    Saudi_Oil: { region: 'Middle East', sector: 'Oil', connectivity: 3, gdpWeight: 0.18 },
+    Iran_Oil: { region: 'Middle East', sector: 'Oil', connectivity: 3, gdpWeight: 0.14 },
+    Iraq_Oil: { region: 'Middle East', sector: 'Oil', connectivity: 2, gdpWeight: 0.12 },
+
+    Suez_Trade: { region: 'Global', sector: 'Logistics', connectivity: 4, gdpWeight: 0.20 },
+
+    India_Oil: { region: 'India', sector: 'Oil', connectivity: 2, gdpWeight: 0.12 },
+    India_Wheat: { region: 'India', sector: 'Agriculture', connectivity: 1, gdpWeight: 0.08 },
+
+    China_Oil: { region: 'China', sector: 'Oil', connectivity: 2, gdpWeight: 0.14 },
+    China_Manufacturing: { region: 'China', sector: 'Manufacturing', connectivity: 3, gdpWeight: 0.20 },
+
+    Vietnam_Manufacturing: { region: 'Vietnam', sector: 'Manufacturing', connectivity: 1, gdpWeight: 0.07 },
+
+    SouthKorea_Semiconductors: { region: 'South Korea', sector: 'Semiconductors', connectivity: 2, gdpWeight: 0.14 },
+    USA_Tech: { region: 'USA', sector: 'Technology', connectivity: 2, gdpWeight: 0.22 },
+
+    France_Energy: { region: 'Europe', sector: 'Energy', connectivity: 2, gdpWeight: 0.16 },
+    UK_Finance: { region: 'Europe', sector: 'Finance', connectivity: 2, gdpWeight: 0.15 }
 };
 
 // ==========================================
@@ -183,14 +246,25 @@ function initSidebar() {
             <div class="space-y-1">
                 <label class="text-xs text-gray-500">Target Node</label>
                 <select id="shock-node-select" class="w-full bg-darkBg border border-borderColor text-white text-xs rounded px-2 py-1.5 outline-none">
-                    <option value="MiddleEast_Oil">Middle East (Oil)</option>
+                    <option value="Saudi_Oil">Saudi Arabia (Oil)</option>
+                    <option value="Iran_Oil">Iran (Oil)</option>
+                    <option value="Iraq_Oil">Iraq (Oil)</option>
+
+                    <option value="Suez_Trade">Suez Canal</option>
+
                     <option value="India_Oil">India (Oil)</option>
                     <option value="India_Wheat">India (Wheat)</option>
+
                     <option value="China_Oil">China (Oil)</option>
                     <option value="China_Manufacturing">China (Mfg)</option>
-                    <option value="USA_Tech">USA (Tech)</option>
-                    <option value="SouthKorea_Semiconductors">S.Korea (Semi)</option>
+
                     <option value="Vietnam_Manufacturing">Vietnam (Mfg)</option>
+
+                    <option value="SouthKorea_Semiconductors">S.Korea (Semi)</option>
+                    <option value="USA_Tech">USA (Tech)</option>
+
+                    <option value="France_Energy">France (Energy)</option>
+                    <option value="UK_Finance">UK (Finance)</option>
                 </select>
             </div>
             <div class="space-y-1">
@@ -224,7 +298,7 @@ function initSidebar() {
 }
 
 function applyShockFromSidebar() {
-    const nodeId    = document.getElementById('shock-node-select')?.value || 'MiddleEast_Oil';
+    const nodeId = document.getElementById('shock-node-select')?.value || 'Saudi_Oil';
     const shockType = document.getElementById('shock-type-select')?.value || 'war';
     const intensity = parseInt(document.getElementById('intensity-slider')?.value || 50);
     handleShockApply(nodeId, shockType, intensity);
@@ -290,8 +364,14 @@ function initCytoscape() {
 
     cy.on('tap', 'node', function (evt) {
         if (draggedShock) {
+            const nodeId = evt.target.id();
+
+            if (!NODE_META[nodeId]) return; // prevent invalid node
+
             const intensity = parseInt(document.getElementById('intensity-slider')?.value || 50);
-            handleShockApply(evt.target.id(), draggedShock, intensity);
+
+            handleShockApply(nodeId, draggedShock, intensity);
+
             draggedShock = null;
         }
     });
@@ -304,16 +384,42 @@ function drag(ev, type) {
 function allowDrop(ev) { ev.preventDefault(); }
 function dropNode(ev) {
     ev.preventDefault();
+
     const type = ev.dataTransfer.getData("text") || draggedShock;
-    if (type) {
+    if (!type) return;
+
+    const mapRect = document.getElementById("mapContainer").getBoundingClientRect();
+
+    const x = ev.clientX - mapRect.left;
+    const y = ev.clientY - mapRect.top;
+
+    const latlng = map.containerPointToLatLng([x, y]);
+
+    let closestNode = null;
+    let minDist = Infinity;
+
+    defaultNodes.forEach(node => {
+        if (!node.data.lat || !node.data.lng) return;
+
+        const dist = map.distance(latlng, [node.data.lat, node.data.lng]);
+
+        if (dist < minDist) {
+            minDist = dist;
+            closestNode = node;
+        }
+    });
+
+    if (closestNode) {
         const intensity = parseInt(document.getElementById('intensity-slider')?.value || 50);
-        handleShockApply('MiddleEast_Oil', type, intensity);
-        draggedShock = null;
+        handleShockApply(closestNode.data.id, type, intensity);
     }
+
+    draggedShock = null;
 }
+
 function triggerPreset(type) {
-    if (type === 'oil')   handleShockApply('MiddleEast_Oil', 'war', 60);
-    if (type === 'trade') handleShockApply('USA_Tech', 'sanction', 45);
+    if (type === 'oil')   handleShockApply('Saudi_Oil', 'war', 60);
+    if (type === 'trade') handleShockApply('Suez_Trade', 'sanction', 45);
 }
 
 // ==========================================
@@ -321,9 +427,8 @@ function triggerPreset(type) {
 // ==========================================
 function initLeaflet() {
     map = L.map('mapContainer').setView([20, 0], 2);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-        subdomains: 'abcd',
+    L.tileLayer('https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; Stadia Maps & OpenMapTiles',
         maxZoom: 20
     }).addTo(map);
 
@@ -392,7 +497,13 @@ function initCharts() {
     charts.bar = new Chart(ctxBar, {
         type: 'bar',
         data: {
-            labels: ['ME Oil', 'India Wheat', 'China Mfg', 'USA Tech', 'S.Korea Semi'],
+            labels: [
+                'Saudi Oil',
+                'India Wheat',
+                'China Mfg',
+                'USA Tech',
+                'S.Korea Semi'
+            ],
             datasets: [{
                 label: 'Supply Level %',
                 data: [100, 100, 100, 100, 100],
@@ -469,22 +580,33 @@ function updateHeatmap(nodes) {
 // ==========================================
 function generateDynamicAlerts(nodeId, shockType, data) {
     const alerts = [];
-    const country = nodeId.split('_')[0];
+
+    const region = NODE_META[nodeId]?.region || 'default';
     const shockKey = (shockType || '').toLowerCase();
     const ruleSet = ALERT_RULES[shockKey] || ALERT_RULES['oil'];
-    const regionAlerts = ruleSet[country] || ruleSet['default'] || [];
+
+    const regionAlerts = ruleSet[region] || ruleSet['default'] || [];
     alerts.push(...regionAlerts.slice(0, 2));
 
     if (data && data.nodes) {
         Object.entries(data.nodes).forEach(([id, nd]) => {
-            const lbl = defaultNodes.find(n => n.data.id === id)?.data.label || id;
-            if (nd.supply < 50) alerts.push(`🔴 CRITICAL: ${lbl} supply at ${nd.supply}% — immediate action required.`);
-            else if (nd.supply < 70) alerts.push(`🟡 WARNING: ${lbl} supply degraded to ${nd.supply}%.`);
+            const lbl = NODE_MAP[id]?.label || id;
+            const status = computeNodeStatus(nd.supply);
+
+            if (status.label === 'Critical') {
+                alerts.push(`🔴 CRITICAL: ${lbl} supply at ${nd.supply}% — severe disruption.`);
+            } else if (status.label === 'Warning') {
+                alerts.push(`🟡 WARNING: ${lbl} supply reduced to ${nd.supply}%.`);
+            }
         });
-        const avg = Object.values(data.nodes).reduce((s, n) => s + n.supply, 0) / Object.keys(data.nodes).length;
-        if (avg < 65) alerts.push("⚠️ Global supply below 65% — systemic risk escalating.");
-        if (avg < 75) alerts.push("Global economic slowdown risk — dependent sectors contracting.");
+
+        const avg = Object.values(data.nodes)
+            .reduce((s, n) => s + n.supply, 0) / Object.keys(data.nodes).length;
+
+        if (avg < 60) alerts.push("🔴 Global supply critical — cascading failures likely.");
+        else if (avg < 75) alerts.push("⚠️ Global supply under stress — slowdown expected.");
     }
+
     return [...new Set(alerts)];
 }
 
@@ -514,7 +636,7 @@ function updateNodeStatusPanel(data) {
     panel.classList.remove('hidden');
     list.innerHTML = '';
     Object.entries(data.nodes).forEach(([id, nd]) => {
-        const lbl    = defaultNodes.find(n => n.data.id === id)?.data.label || id;
+        const lbl = NODE_MAP[id]?.label || id;
         const status = computeNodeStatus(nd.supply);
         const row = document.createElement('div');
         row.className = 'flex items-center justify-between py-0.5 border-b border-borderColor/30';
@@ -538,7 +660,7 @@ function bfsPropagate(originId, nodeSupplies) {
     const seen    = new Set([originId]);
     while (queue.length > 0) {
         const current = queue.shift();
-        if ((nodeSupplies[current] ?? 100) < 90) visited.push(current);
+        if ((nodeSupplies[current] ?? 100) < 80) visited.push(current);
         (GRAPH_ADJACENCY[current] || []).forEach(nbr => {
             if (!seen.has(nbr)) { seen.add(nbr); queue.push(nbr); }
         });
@@ -554,7 +676,7 @@ function buildPropagationSteps(originId, nodeSupplies) {
     defaultNodes.forEach(n => { t0[n.data.id] = 100; t1[n.data.id] = 100; t2[n.data.id] = nodeSupplies[n.data.id] ?? 100; });
 
     // t0: only origin is affected (critical)
-    t0[originId] = nodeSupplies[originId] ?? 40;
+    t0[originId] = nodeSupplies[originId] ?? 70;
 
     // t1: origin + direct neighbors at mid-point
     t1[originId] = nodeSupplies[originId] ?? 40;
@@ -578,16 +700,24 @@ function updateTimeline(val) {
 
     Object.keys(markers).forEach(id => {
         const supply  = stepData[id] ?? 100;
-        let color, statusLabel;
-        if      (supply < 50) { color = "#ef4444"; statusLabel = "Critical"; }
-        else if (supply < 80) { color = "#f59e0b"; statusLabel = "Warning";  }
-        else                  { color = "#10b981"; statusLabel = "Normal";   }
+        const status = computeNodeStatus(supply);
+
+        const color =
+            status.label === "Critical" ? "#ef4444" :
+            status.label === "Warning"  ? "#f59e0b" :
+                                        "#22c55e";
+
+        const statusLabel = status.label;
 
         const disruption = Math.max(0, 100 - supply);
         const meta  = NODE_META[id] || {};
-        const label = defaultNodes.find(n => n.data.id === id)?.data.label || id;
-        markers[id].setStyle({ fillColor: color, color: color });
-        markers[id].setTooltipContent(buildTooltip(label, statusLabel, supply, disruption, meta.region || ''));
+        const label = NODE_MAP[id]?.label || id;
+        markers[id].setStyle({
+            fillColor: color,
+            color: "#ffffff",
+            fillOpacity: 0.9
+        });
+        markers[id].setTooltipContent(buildTooltip(label, statusLabel, supply, disruption, meta.region || 'Global'));
         markers[id].setRadius(supply < 50 ? 14 : supply < 80 ? 11 : 9);
     });
 }
@@ -634,12 +764,13 @@ async function handleShockApply(nodeId, shockType, intensity) {
 
 function processSimulationData(data, payload, originNodeId) {
     currentSimulationData = data;
-    originNodeId = originNodeId || `${payload.country}_${payload.resource}`;
+    originNodeId = originNodeId || nodeId;
 
     document.getElementById('sim-loader').classList.add('hidden');
     const statusBadge = document.getElementById('global-status');
     statusBadge.className = "px-3 py-1 bg-red-900/50 text-red-400 border border-red-800 rounded text-xs font-semibold uppercase";
-    statusBadge.innerText = `Shock: ${payload.shock}`;
+    const region = NODE_META[originNodeId]?.region || '';
+    statusBadge.innerText = `Shock: ${payload.shock} (${region})`;
 
     // ---- NETWORK TAB ----
     cy.nodes().forEach(node => node.removeClass('shocked').removeClass('affected-medium').removeClass('origin-node'));
@@ -657,7 +788,7 @@ function processSimulationData(data, payload, originNodeId) {
         cy.edges().forEach(edge => {
             const srcS = data.nodes[edge.data('source')]?.supply ?? 100;
             const tgtS = data.nodes[edge.data('target')]?.supply ?? 100;
-            if (srcS < 80 || tgtS < 80) edge.addClass('edge-active');
+            if (srcS < 70 || tgtS < 70) edge.addClass('edge-active');
         });
     }
 
@@ -706,9 +837,13 @@ function processSimulationData(data, payload, originNodeId) {
         const supply = nodeSupplies[id] ?? 100;
         const color  = supply < 50 ? "#ef4444" : supply < 80 ? "#f59e0b" : "#10b981";
         const stat   = computeNodeStatus(supply);
-        const lbl    = defaultNodes.find(n => n.data.id === id)?.data.label || id;
+        const lbl    = NODE_MAP[id]?.label || id;
         const meta   = NODE_META[id] || {};
-        markers[id].setStyle({ fillColor: color, color: color });
+        markers[id].setStyle({
+            fillColor: color,
+            color: "#ffffff",
+            fillOpacity: 0.9
+        });
         markers[id].setTooltipContent(buildTooltip(lbl, stat.label, supply, Math.max(0, 100 - supply), meta.region || ''));
         markers[id].setRadius(supply < 50 ? 14 : supply < 80 ? 11 : 9);
     });
@@ -719,7 +854,7 @@ function processSimulationData(data, payload, originNodeId) {
         charts.line.update();
     }
 
-    const sectors   = ['MiddleEast_Oil', 'India_Wheat', 'China_Manufacturing', 'USA_Tech', 'SouthKorea_Semiconductors'];
+    const sectors   = ['Saudi_Oil', 'India_Wheat', 'China_Manufacturing', 'USA_Tech', 'SouthKorea_Semiconductors'];
     const barData   = sectors.map(id => data.nodes?.[id]?.supply ?? 100);
     const barColors = barData.map(v => v < 50 ? '#ef4444' : v < 80 ? '#f59e0b' : '#10b981');
     charts.bar.data.datasets[0].data             = barData;
@@ -751,7 +886,7 @@ function processSimulationData(data, payload, originNodeId) {
     if (kpiNodes)  kpiNodes.innerText = affectedNodes;
 
     const worstNode  = data.nodes ? Object.entries(data.nodes).sort((a, b) => a[1].supply - b[1].supply)[0] : null;
-    const worstLabel = worstNode ? (defaultNodes.find(n => n.data.id === worstNode[0])?.data.label || worstNode[0]) : '–';
+    const worstLabel = worstNode ? (NODE_MAP[worstNode[0]]?.label || worstNode[0]) : '–';
     const summaryEl  = document.getElementById('analytics-summary');
     if (summaryEl) {
         summaryEl.innerText = `Shock "${payload.shock.toUpperCase()}" at ${payload.country} (${payload.resource}). ` +
@@ -766,11 +901,45 @@ function processSimulationData(data, payload, originNodeId) {
 // ==========================================
 // INSIGHTS — Rule-based + BFS
 // ==========================================
+function shockAwarePropagation(originId, nodeSupplies, shockType) {
+    const visited = [];
+    const queue   = [{ id: originId, depth: 0 }];
+    const seen    = new Set([originId]);
+
+    while (queue.length > 0) {
+        const { id, depth } = queue.shift();
+        const supply = nodeSupplies[id] ?? 100;
+
+        // 🔥 shock-specific filtering
+        let threshold = 80;
+
+        if (shockType === 'war') threshold = 90;        // spreads more
+        if (shockType === 'sanction') threshold = 70;   // selective
+        if (shockType === 'exportban') threshold = 75;
+
+        if (supply < threshold) visited.push(id);
+
+        (GRAPH_ADJACENCY[id] || []).forEach(nbr => {
+            if (!seen.has(nbr)) {
+                seen.add(nbr);
+
+                // 🔥 shock-specific depth control
+                if (shockType === 'exportban' && depth > 1) return;
+                if (shockType === 'sanction' && !nbr.includes('Tech') && !nbr.includes('Manufacturing')) return;
+
+                queue.push({ id: nbr, depth: depth + 1 });
+            }
+        });
+    }
+
+    return visited;
+}
+
 function updateInsights(data, payload, originNodeId, riskLevel, affectedNodes, allNodes) {
     const nodeSupplies = {};
     if (data.nodes) Object.entries(data.nodes).forEach(([id, nd]) => { nodeSupplies[id] = nd.supply; });
 
-    const cascadePath  = bfsPropagate(originNodeId, nodeSupplies);
+    const cascadePath = shockAwarePropagation(originNodeId, nodeSupplies, payload.shock);
     const pathLabels   = [...new Set(cascadePath.map(id => NODE_META[id]?.region || id.split('_')[0]))];
 
     // Root cause
@@ -831,7 +1000,7 @@ function updateInsights(data, payload, originNodeId, riskLevel, affectedNodes, a
             .slice(0, 4);
         depEl.innerHTML = sorted.length
             ? sorted.map(n => {
-                const lbl = defaultNodes.find(x => x.data.id===n.id)?.data.label || n.id;
+                const lbl = NODE_MAP[n.id]?.label || n.id;
                 const s   = computeNodeStatus(n.supply);
                 return `<li><span class="${s.color} font-semibold">${lbl}</span> — Connectivity: ${n.meta.connectivity}, Disruption: ${100-n.supply}%, GDP: ${(n.meta.gdpWeight*100).toFixed(0)}%</li>`;
               }).join('')
@@ -860,21 +1029,37 @@ function updateInsights(data, payload, originNodeId, riskLevel, affectedNodes, a
 function generateRecommendations(payload, riskLevel, cascadePath, data) {
     const recs  = [];
     const shock = payload.shock.toLowerCase();
-    if (shock==='oil'||shock==='war') {
-        recs.push(`- Activate strategic petroleum reserves to buffer ${payload.country} supply disruption.`);
-        recs.push(`- Diversify energy imports: redirect to producers outside the propagation path.`);
+
+    if (shock === 'oil') {
+        recs.push(`- Activate strategic petroleum reserves.`);
+        recs.push(`- Diversify oil imports from alternate suppliers.`);
     }
-    if (shock==='sanction') {
-        recs.push(`- Identify alternative trade partners outside the sanctioned region.`);
-        recs.push(`- Stockpile critical components ahead of expected supply compression.`);
+
+    if (shock === 'war') {
+        recs.push(`- Secure trade routes and reroute logistics.`);
+        recs.push(`- Increase defense and supply chain monitoring.`);
     }
-    if (shock==='exportban') {
-        recs.push(`- Engage diplomatic channels to negotiate partial export exemptions.`);
-        recs.push(`- Accelerate domestic production of restricted commodities.`);
+
+    if (shock === 'sanction') {
+        recs.push(`- Shift to alternative trade partners.`);
+        recs.push(`- Build domestic production capacity for restricted goods.`);
     }
-    if (cascadePath.length > 2) recs.push(`- Deploy circuit-breaker protocols at intermediate nodes to contain cascade propagation.`);
-    if (riskLevel==='High') recs.push(`- Invoke emergency supply chain resilience protocols. Activate backup logistics corridors.`);
-    recs.push(`- Strengthen long-term supply chain diversification to reduce single-point-of-failure risk.`);
+
+    if (shock === 'exportban') {
+        recs.push(`- Identify substitute import sources immediately.`);
+        recs.push(`- Increase domestic production to offset shortages.`);
+    }
+
+    if (cascadePath.length > 2) {
+        recs.push(`- Contain cascading effects via intermediate node stabilization.`);
+    }
+
+    if (riskLevel === 'High') {
+        recs.push(`- Activate emergency supply chain resilience protocols.`);
+    }
+
+    recs.push(`- Improve long-term diversification to reduce dependency risks.`);
+
     return recs;
 }
 
@@ -893,9 +1078,11 @@ function generateRuleBasedSimulation(payload, originNodeId) {
         const { id, decay } = queue.shift();
         if (visited.has(id)) continue;
         visited.add(id);
-        nodeSupplies[id] = Math.max(20, Math.round(100 - reductionFactor * decay * 100));
+        nodeSupplies[id] = Math.max(40, Math.round(100 - reductionFactor * decay * 100));
         (GRAPH_ADJACENCY[id] || []).forEach(nbr => {
-            if (!visited.has(nbr)) queue.push({ id: nbr, decay: decay * 0.6 });
+            if (!visited.has(nbr) && decay > 0.25) {
+                queue.push({ id: nbr, decay: decay * 0.5 });
+            }
         });
     }
 
@@ -912,8 +1099,12 @@ function generateRuleBasedSimulation(payload, originNodeId) {
 
     const nodes = {};
     defaultNodes.forEach(n => {
-        const p = n.data.id.split('_');
-        nodes[n.data.id] = { country: p[0], resource: p[1]||'', supply: nodeSupplies[n.data.id] };
+        const meta = NODE_META[n.data.id] || {};
+        nodes[n.data.id] = {
+            country: meta.region || n.data.id.split('_')[0],
+            resource: meta.sector || '',
+            supply: nodeSupplies[n.data.id]
+        };
     });
 
     const critCnt  = allVals.filter(v=>v<50).length;

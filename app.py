@@ -82,7 +82,7 @@ def parse_output(output):
             p = item.split("|")
             if len(p) == 3:
                 country, resource, value = p
-                key = f"{country}_{resource}"
+                key = f"{country}_{resource}".replace(" ", "")
                 result_nodes[key] = int(float(value))
 
         # --- Handle History Array (Part 2) ---
@@ -112,7 +112,9 @@ def split_node(node):
 # 📊 METRICS
 # =========================
 NODE_GDP_WEIGHTS = {
-    "MiddleEast_Oil": 0.18,
+    "Saudi_Oil": 0.18,
+    "Iran_Oil": 0.14,
+    "Iraq_Oil": 0.12,
     "India_Oil": 0.12,
     "India_Wheat": 0.08,
     "China_Oil": 0.14,
@@ -120,6 +122,9 @@ NODE_GDP_WEIGHTS = {
     "USA_Tech": 0.22,
     "SouthKorea_Semiconductors": 0.14,
     "Vietnam_Manufacturing": 0.07,
+    "France_Energy": 0.16,
+    "UK_Finance": 0.15,
+    "Suez_Trade": 0.20
 }
 
 def calculate_metrics(data):
@@ -176,7 +181,7 @@ def generate_alerts(data):
     for node, val in data.items():
         info = split_node(node)
         if val < 75:
-            alerts.append(f"{info['resource']} supply disruption detected")
+            alerts.append(f"{info['country']} facing {info['resource']} disruption")
 
     return list(set(alerts))
 
@@ -231,6 +236,14 @@ def index():
     return render_template('index.html')
 
 
+
+def simulate():
+    data = request.json or {}
+    country = data.get("country")
+    resource = data.get("resource")
+    shock = data.get("shock")
+    reduction = data.get("reduction", 30)
+
 @app.route('/simulate', methods=['POST'])
 def simulate():
     data = request.json or {}
@@ -242,24 +255,38 @@ def simulate():
     # 🔵 INITIAL LOAD (Default 100% data)
     if not country or not resource or not shock:
         parsed_nodes = {
-            "MiddleEast_Oil": 100, "India_Oil": 100, "India_Wheat": 100,
-            "China_Manufacturing": 100, "USA_Tech": 100, "SouthKorea_Semiconductors": 100
+            "Saudi_Oil": 100,
+            "Iran_Oil": 100,
+            "Iraq_Oil": 100,
+            "India_Oil": 100,
+            "India_Wheat": 100,
+            "China_Oil": 100,
+            "China_Manufacturing": 100,
+            "USA_Tech": 100,
+            "SouthKorea_Semiconductors": 100,
+            "Vietnam_Manufacturing": 100,
+            "France_Energy": 100,
+            "UK_Finance": 100,
+            "Suez_Trade": 100
         }
-        history = [100] * 90 # Flat line for initial state
+        history = [100] * 90
         return jsonify(build_response(parsed_nodes, history, "Global", "None"))
 
     # 🔴 RUN SIMULATION
     output = run_c_program(country, resource, shock, reduction)
     
-    # Get both the nodes and the history array
+    # Parse output
     parsed_nodes, history = parse_output(output)
 
+    # ❗ FIRST validate nodes
     if not parsed_nodes:
         return jsonify({"error": "Simulation failed"}), 400
 
+    # ✅ THEN fix history if needed
+    if not history:
+        history = [100] * 90
+
     return jsonify(build_response(parsed_nodes, history, country, resource))
-
-
 # =========================
 # ▶️ RUN SERVER
 # =========================

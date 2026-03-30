@@ -19,17 +19,22 @@ typedef struct {
 } Node;
 
 Node nodes[MAX_NODES] = {
-    {"MiddleEast", "Oil", 100},
+    {"Saudi", "Oil", 100},
+    {"Iran", "Oil", 100},
+    {"Iraq", "Oil", 100},
     {"India", "Oil", 100},
     {"India", "Wheat", 100},
     {"China", "Oil", 100},
     {"China", "Manufacturing", 100},
     {"USA", "Tech", 100},
     {"SouthKorea", "Semiconductors", 100},
-    {"Vietnam", "Manufacturing", 100}
+    {"Vietnam", "Manufacturing", 100},
+    {"France", "Energy", 100},
+    {"UK", "Finance", 100},
+    {"Suez", "Trade", 100}
 };
 
-int node_count = 8;
+int node_count = 13;
 int adj[MAX_NODES][MAX_NODES] = {0};
 
 // ---------------- FIND NODE ----------------
@@ -45,21 +50,23 @@ int find_node(char *country, char *resource) {
 // ---------------- INIT GRAPH ----------------
 void init_graph() {
 
-    // MiddleEast Oil → India Oil, China Oil
-    adj[0][1] = 1;
-    adj[0][3] = 1;
+    // Oil → Suez
+    adj[0][12] = 1; // Saudi → Suez
+    adj[1][12] = 1; // Iran → Suez
+    adj[2][12] = 1; // Iraq → Suez
 
-    // India Oil → India Wheat (cross-sector)
-    adj[1][2] = 1;
+    // Suez → global
+    adj[12][3] = 1; // → India Oil
+    adj[12][5] = 1; // → China Oil
+    adj[12][10] = 1; // → France
 
-    // China Oil → Manufacturing
-    adj[3][4] = 1;
+    // Downstream
+    adj[3][4] = 1;  // India Oil → Wheat
+    adj[5][6] = 1;  // China Oil → Manufacturing
+    adj[6][9] = 1;  // China → Vietnam
 
-    // China Manufacturing → Vietnam Manufacturing
-    adj[4][7] = 1;
-
-    // South Korea → USA Tech
-    adj[6][5] = 1;
+    adj[8][7] = 1;  // Korea → USA Tech
+    adj[10][11] = 1; // France → UK
 }
 
 // ---------------- SHOCK MULTIPLIER ----------------
@@ -75,6 +82,14 @@ float get_multiplier(char *shock_type) {
     return 1.0;
 }
 
+
+float get_decay(char *shock_type) {
+    if (strcasecmp(shock_type, "war") == 0) return 0.7;
+    if (strcasecmp(shock_type, "sanction") == 0) return 0.5;
+    if (strcasecmp(shock_type, "exportban") == 0) return 0.4;
+    return 0.6; // oil default
+}
+
 // ---------------- SIMULATION ----------------
 void simulate_90_days(int source, float reduction, char *shock_type) {
     float daily_supply[SIM_DAYS];
@@ -84,6 +99,69 @@ void simulate_90_days(int source, float reduction, char *shock_type) {
     float max_impact = reduction * multiplier;
     if (max_impact > 100) max_impact = 100;
 
+    // 🔥 ADD THIS HERE
+    float nodeImpact[MAX_NODES];
+    for(int i = 0; i < node_count; i++) nodeImpact[i] = 0;
+
+    float decay = get_decay(shock_type);
+
+    // BFS
+    int queue[MAX_NODES];
+    float impact_queue[MAX_NODES];
+    int front = 0, rear = 0;
+
+    int visited[MAX_NODES] = {0};
+
+    queue[rear] = source;
+    impact_queue[rear] = max_impact;
+    rear++;
+
+    while(front < rear) {
+        int current = queue[front];
+        float impact = impact_queue[front];
+        front++;
+
+        if (visited[current]) continue;
+        visited[current] = 1;
+
+        char *res = nodes[current].resource;
+
+        // 🔥 SANCTION FILTER
+        if (strcasecmp(shock_type, "sanction") == 0) {
+            if (strcasecmp(res, "Tech") != 0 &&
+                strcasecmp(res, "Semiconductors") != 0 &&
+                strcasecmp(res, "Manufacturing") != 0) {
+                continue;
+            }
+        }
+
+        // 🔥 EXPORT BAN FILTER
+        if (strcasecmp(shock_type, "exportban") == 0) {
+            if (impact < 40) continue;
+        }
+
+        if(impact < 15) continue;
+
+        if(impact > nodeImpact[current])
+            nodeImpact[current] = impact;
+
+        for(int j = 0; j < node_count; j++) {
+            if(adj[current][j]) {
+                if (rear < MAX_NODES) {
+                    queue[rear] = j;
+                    impact_queue[rear] = impact * decay;
+                    rear++;
+                }
+            }
+        }
+    }
+
+    float avgImpact = 0;
+    for(int i = 0; i < node_count; i++) {
+        avgImpact += nodeImpact[i];
+    }
+    avgImpact /= node_count;
+
     // Simulation Constants
     float recovery_rate = 0.05; // 5% recovery toward baseline per day
     float shock_delay = 5;      // Peak impact hits on day 5
@@ -92,12 +170,12 @@ void simulate_90_days(int source, float reduction, char *shock_type) {
         if (day < shock_delay) {
             // Day 0-5: Supply drops linearly to the peak impact
             float drop_progress = (float)day / shock_delay;
-            daily_supply[day] = 100 - (max_impact * drop_progress);
+            daily_supply[day] = 100 - (avgImpact * drop_progress);
         } else {
             // Day 6-90: Gradual recovery using an exponential decay towards 100%
             int days_since_peak = day - (int)shock_delay;
             // Formula: Current = 100 - (Remaining_Impact * e^(-recovery_rate * time))
-            daily_supply[day] = 100 - (max_impact * exp(-recovery_rate * days_since_peak));
+            daily_supply[day] = 100 - (avgImpact * exp(-recovery_rate * days_since_peak));
         }
     }
 
@@ -105,8 +183,7 @@ void simulate_90_days(int source, float reduction, char *shock_type) {
     // Part 1: Node State (Snapshot)
     for (int i = 0; i < node_count; i++) {
         // We use Day 5 (peak impact) for the node status dots
-        float peak_impact = (i == source) ? max_impact : (max_impact * 0.4); 
-        float remaining = 100 - peak_impact;
+        float remaining = 100 - nodeImpact[i];
         if(remaining < 0) remaining = 0;
         
         printf("%s|%s|%.0f", nodes[i].country, nodes[i].resource, remaining);
