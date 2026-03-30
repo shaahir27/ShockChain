@@ -209,6 +209,97 @@ document.addEventListener('DOMContentLoaded', () => {
     initSidebar();
 });
 
+function applyForecastRules(nodes, shockType, originNode, intensity) {
+
+    let updated = { ...nodes };
+
+    const region = NODE_META[originNode]?.region || "";
+    const sector = NODE_META[originNode]?.sector || "";
+
+    // =========================
+    // 🔥 IRAN WAR MODEL (REAL WORLD)
+    // =========================
+    if (shockType === "war") {
+
+        // 1️⃣ DIRECT IMPACT
+        updated[originNode] -= intensity;
+
+        // =========================
+        // 🛢️ ENERGY SHOCK (GLOBAL)
+        // =========================
+        if (sector === "Oil" || region === "Middle East") {
+
+            // Core oil collapse
+            ["Saudi_Oil", "Iran_Oil", "Iraq_Oil"].forEach(n => {
+                if (updated[n]) updated[n] -= intensity * 0.8;
+            });
+
+            // Strait of Hormuz / Suez disruption
+            updated["Suez_Trade"] -= intensity * 0.7;
+
+            // Importers hit hard
+            updated["India_Oil"] -= intensity * 0.5;
+            updated["China_Oil"] -= intensity * 0.5;
+        }
+
+        // =========================
+        // ⚙️ TECH INFRA IMPACT
+        // =========================
+        // (AWS outages, helium shortage, chips)
+        updated["USA_Tech"] -= intensity * 0.3;
+        updated["SouthKorea_Semiconductors"] -= intensity * 0.5;
+        updated["China_Manufacturing"] -= intensity * 0.4;
+        updated["Vietnam_Manufacturing"] -= intensity * 0.3;
+
+        // =========================
+        // 🌍 GLOBAL ECONOMIC RIPPLE
+        // =========================
+        Object.keys(updated).forEach(id => {
+            if (updated[id] < 80) {
+                updated[id] -= 5; // inflation ripple
+            }
+        });
+    }
+
+    // =========================
+    // ⚙️ SANCTIONS (US vs CHINA / IRAN)
+    // =========================
+    if (shockType === "sanction") {
+
+        updated[originNode] -= intensity;
+
+        // Tech war chain
+        updated["USA_Tech"] -= intensity * 0.8;
+        updated["SouthKorea_Semiconductors"] -= intensity * 0.6;
+        updated["China_Manufacturing"] -= intensity * 0.5;
+        updated["Vietnam_Manufacturing"] -= intensity * 0.4;
+    }
+
+    // =========================
+    // 🚢 EXPORT / TRADE BAN
+    // =========================
+    if (shockType === "exportban") {
+
+        updated[originNode] -= intensity;
+
+        // Trade choke points
+        updated["Suez_Trade"] -= intensity * 0.6;
+
+        // Downstream impact
+        updated["India_Wheat"] -= intensity * 0.4;
+        updated["China_Manufacturing"] -= intensity * 0.4;
+    }
+
+    // =========================
+    // 🧠 FINAL NORMALIZATION
+    // =========================
+    Object.keys(updated).forEach(id => {
+        updated[id] = Math.max(0, Math.min(100, updated[id]));
+    });
+
+    return updated;
+}
+
 // ==========================================
 // TAB NAVIGATION
 // ==========================================
@@ -378,44 +469,74 @@ function initCytoscape() {
 }
 
 function drag(ev, type) {
-    draggedShock = type;
-    ev.dataTransfer.setData("text", type);
+    ev.dataTransfer.setData("text/plain", type);
 }
 function allowDrop(ev) { ev.preventDefault(); }
+
 function dropNode(ev) {
     ev.preventDefault();
 
-    const type = ev.dataTransfer.getData("text") || draggedShock;
-    if (!type) return;
+    const shockType = ev.dataTransfer.getData("text/plain");
 
-    const mapRect = document.getElementById("mapContainer").getBoundingClientRect();
+    const container = document.getElementById("cy");
+    const rect = container.getBoundingClientRect();
 
-    const x = ev.clientX - mapRect.left;
-    const y = ev.clientY - mapRect.top;
+    const x = ev.clientX - rect.left;
+    const y = ev.clientY - rect.top;
 
-    const latlng = map.containerPointToLatLng([x, y]);
+    let selectedNode = null;
 
-    let closestNode = null;
-    let minDist = Infinity;
+    // ✅ FIRST: exact bounding box match
+    cy.nodes().forEach(n => {
+        const box = n.renderedBoundingBox();
 
-    defaultNodes.forEach(node => {
-        if (!node.data.lat || !node.data.lng) return;
-
-        const dist = map.distance(latlng, [node.data.lat, node.data.lng]);
-
-        if (dist < minDist) {
-            minDist = dist;
-            closestNode = node;
+        if (
+            x >= box.x1 &&
+            x <= box.x2 &&
+            y >= box.y1 &&
+            y <= box.y2
+        ) {
+            selectedNode = n;
         }
     });
 
-    if (closestNode) {
-        const intensity = parseInt(document.getElementById('intensity-slider')?.value || 50);
-        handleShockApply(closestNode.data.id, type, intensity);
+    // ✅ SECOND: fallback → nearest node
+    if (!selectedNode) {
+        let minDist = Infinity;
+
+        cy.nodes().forEach(n => {
+            const pos = n.renderedPosition();
+            const dist = Math.hypot(pos.x - x, pos.y - y);
+
+            if (dist < minDist) {
+                minDist = dist;
+                selectedNode = n;
+            }
+        });
     }
 
-    draggedShock = null;
+    if (!selectedNode) {
+        console.log("No node detected");
+        return;
+    }
+
+    const nodeId = selectedNode.id();
+
+    console.log("Dropped on:", nodeId);
+
+    handleShockApply(nodeId, shockType);
 }
+
+const cyContainer = document.getElementById("cy");
+
+cyContainer.addEventListener("dragover", (e) => {
+    e.preventDefault(); // REQUIRED
+});
+
+cyContainer.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropNode(e);
+});
 
 function triggerPreset(type) {
     if (type === 'oil')   handleShockApply('Saudi_Oil', 'war', 60);
@@ -721,44 +842,130 @@ function updateTimeline(val) {
     });
 }
 
-function triggerSimulation() { applyShockFromSidebar(); }
+let playInterval = null;
+
+function triggerSimulation() {
+
+    const slider = document.getElementById('timeline-slider');
+    const btn = document.querySelector('[onclick="triggerSimulation()"]');
+
+    // ⛔ If already playing → stop
+    if (playInterval) {
+        clearInterval(playInterval);
+        playInterval = null;
+
+        btn.innerHTML = '<i class="fa-solid fa-play text-brandBlue"></i><span class="font-semibold text-sm">Play Simulation</span>';
+        return;
+    }
+
+    let current = parseInt(slider.value) || 0;
+
+    // ▶ Change to Pause
+    btn.innerHTML = '<i class="fa-solid fa-pause text-brandBlue"></i><span class="font-semibold text-sm">Pause</span>';
+
+    playInterval = setInterval(() => {
+
+        current += 2;
+
+        if (current > 90) {
+            clearInterval(playInterval);
+            playInterval = null;
+
+            // 🔥 RESET BUTTON BACK TO PLAY
+            btn.innerHTML = '<i class="fa-solid fa-play text-brandBlue"></i><span class="font-semibold text-sm">Play Simulation</span>';
+
+            return;
+        }
+
+        slider.value = current;
+        updateTimeline(current);
+
+    }, 120);
+}
 
 // ==========================================
 // SIMULATION LOGIC & API CALLS
 // ==========================================
-async function handleShockApply(nodeId, shockType, intensity) {
+
+let activeShocks = [];
+
+function applyMultiShock(nodes) {
+    let result = { ...nodes };
+
+    activeShocks.forEach(shock => {
+        result = applyForecastRules(
+            result,
+            shock.type,
+            shock.nodeId,
+            shock.intensity
+        );
+    });
+
+    return result;
+}
+
+function handleShockApply(nodeId, shockType, intensity) {
+
     intensity = intensity || parseInt(document.getElementById('intensity-slider')?.value || 50);
+
+    // UI loading
     document.getElementById('sim-loader').classList.remove('hidden');
-    document.getElementById('global-status').className = "px-3 py-1 bg-yellow-900/50 text-yellow-400 border border-yellow-800 rounded text-xs font-semibold";
-    document.getElementById('global-status').innerText = "Simulating...";
 
-    const nodeSelect = document.getElementById('shock-node-select');
-    const typeSelect = document.getElementById('shock-type-select');
-    if (nodeSelect) nodeSelect.value = nodeId;
-    if (typeSelect) typeSelect.value = shockType;
+    const status = document.getElementById('global-status');
+    status.className =
+        "px-3 py-1 bg-yellow-900/50 text-yellow-400 border border-yellow-800 rounded text-xs font-semibold";
+    status.innerText = "Simulating...";
 
-    const parts = nodeId.split('_');
-    const payload = {
-        country:   parts[0],
-        resource:  parts[1] || 'Oil',
-        shock:     shockType,
-        reduction: intensity
+    // 🔥 BASE STATE
+    const baseState = {};
+    defaultNodes.forEach(n => baseState[n.data.id] = 100);
+
+    // 🔥 APPLY FORECAST
+    const result = applyForecastRules(baseState, shockType, nodeId, intensity);
+
+    // 🔥 BUILD FULL DATA OBJECT (CRITICAL FIX)
+    const data = {
+        nodes: {},
+        metrics: {
+            avgSupply: 0
+        },
+        history: []
     };
 
-    try {
-        const response = await fetch(`${API_BASE}/simulate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        if (!response.ok) throw new Error("API error");
-        const data = await response.json();
-        processSimulationData(data, payload, nodeId);
-    } catch (e) {
-        console.warn("Backend unavailable — using rule-based fallback.", e);
-        const mockData = generateRuleBasedSimulation(payload, nodeId);
-        setTimeout(() => processSimulationData(mockData, payload, nodeId), 500);
+    let total = 0;
+    let count = 0;
+
+    Object.keys(result).forEach(id => {
+        const supply = result[id];
+
+        data.nodes[id] = { supply };
+
+        total += supply;
+        count++;
+    });
+
+    // ✅ Avg Supply (FIXES METRICS)
+    data.metrics.avgSupply = Math.round(total / count);
+
+    // ✅ History (FIXES GRAPH)
+    for (let i = 0; i < 90; i++) {
+        const val = 100 - (100 - data.metrics.avgSupply) * Math.exp(-i / 25);
+        data.history.push(Math.round(val));
     }
+
+    // ✅ Proper payload (FIXES CRASH)
+    const payload = {
+        shock: shockType,
+        country: nodeId.split('_')[0],
+        resource: nodeId.split('_')[1]
+    };
+
+    // 🔥 FINAL CALL
+    setTimeout(() => {
+        processSimulationData(data, payload, nodeId);
+
+        document.getElementById('sim-loader').classList.add('hidden');
+    }, 200);
 }
 
 function processSimulationData(data, payload, originNodeId) {

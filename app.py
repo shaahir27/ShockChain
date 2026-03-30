@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import subprocess
 import os
+import json
 from flask import render_template
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -272,10 +273,8 @@ def simulate():
         history = [100] * 90
         return jsonify(build_response(parsed_nodes, history, "Global", "None"))
 
-    # 🔴 RUN SIMULATION
     output = run_c_program(country, resource, shock, reduction)
-    
-    # Parse output
+
     parsed_nodes, history = parse_output(output)
 
     # ❗ FIRST validate nodes
